@@ -1,0 +1,47 @@
+{
+  "cluster": "devnet",
+  "programId": "4PTGwC7KTRZhjhKgXXrD9WTRyoCb8cpKWy6HAsaMXvBj",
+  "ansemMint": "GC3hpHn9p2LtzWwM3WQrYPZXXsxULg53pPKfRoAs2gVW",
+  "note": "Devnet mock Ansem — mainnet uses 9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+  "protocol": "BuX8YpyhynL7sqnSZPM4t7nnqz8nuqrDd9NwohLsezy3",
+  "bulletMint": "5WMkxFSRhBj4WUXkZQmKb3iutZGRvaPe9vwdNhJ1JCta",
+  "vault": "BkR95i3Nzw9dVV4NW3njhjTFBSYxDTJFQgBpA7mdQSS",
+  "polVault": "8EJCAxD9HNH6nXWdD9sTp565KcdmwsBXf6aiSQMttAub",
+  "collateralVault": "DdPnuEy3XirLxQbJizTUqwrs6UD2iWnuPQXyTUmzLbVd",
+  "feeRecipient": "5RE5aMBxrUkD9iEfX5Tj5E5CCpNZhdGptswAV8nYF1bK",
+  "feeAta": "5RTez9PzixMgut5mNzVKjMGsRYkn1ygeBGzRim1c6A6a",
+  "initializeTx": "5cWbE71UhcJZRsJZN8MJn8HgdRpVHfAaXjkkVxt9x1TSB1fWBSPwc83QaxbiSNasp7U9Fn2UUVQKLWSURfEBAouV",
+  "explorer": "https://explorer.solana.com/address/4PTGwC7KTRZhjhKgXXrD9WTRyoCb8cpKWy6HAsaMXvBj?cluster=devnet",
+  "genesisVaults": {
+    "VIP Genesis": {
+      "tier": 0,
+      "genesisVault": "12hkFxgKyFvJhmivrsesqaAGLwPuTHGhYCfSTvaZjC1q",
+      "tokenVault": "9KDCB3p83AsZ4ufT3NHvTgBb9JvKFwoNf1KAiMgA9Gae",
+      "bulletVault": "4ruDZ3Phu7bBr4SM8MmYFJRr6tbFyJat9NyemUdbbgYK",
+      "feeBps": 0,
+      "depositCap": 250000,
+      "maxAllocation": 25000,
+      "initTx": "2muSB7TaiuU3ti77NXpdH1HQVpin75GYbG9yeM7yDn78iavE79ZYLuSqY7ae7Y3DstbhL7niLbnr9q3iCbs7Vk9f"
+    },
+    "Community": {
+      "tier": 1,
+      "genesisVault": "9yvpGBEe9K9YzGyWKaWDZ9HWruysriotsrjFDMu4rL5y",
+      "tokenVault": "GCcQNBEeGQeDDNAmbtyWhfkQWs9CWU5nMB1wVTBQHFs8",
+      "bulletVault": "HswanCcAnrCR2DfYhQdH9dytn7WgH5K5p6ZMZEdigeYj",
+      "feeBps": 100,
+      "depositCap": 500000,
+      "maxAllocation": 10000,
+      "initTx": "4Yx5J5wGNExkgYHD8FSCoGJvmf74bNfc88BdNn6yScf5vf6tikzvpNr4gQkC1GUYJWm1YS6S7bvQVtzp4apxiwxA"
+    },
+    "Public": {
+      "tier": 2,
+      "genesisVault": "FA3FjB7ohB6W5GhMbMNJMSFjr89g5TtjY25wKKx53zrN",
+      "tokenVault": "EYTRitGFf2EiN7H5vUsZ7uqyDv3ziVfVTTtSRkhx5W4H",
+      "bulletVault": "qMTSoFWuSdhmWo7nCKP8BUuikbpP7FY2U86aU5MxL5V",
+      "feeBps": 150,
+      "depositCap": 1000000,
+      "maxAllocation": 5000,
+      "initTx": "2KCPsiBQvDt63Wzjqd132HhE3tAFQGMewrt3pY7ckfdUFnnUWcRuwLXMjhtwSo6R6uNQhi8vZ4z5hR1kAfGEACuc"
+    }
+  }
+}

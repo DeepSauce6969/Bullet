@@ -1,0 +1,15 @@
+node_modules/
+.anchor/
+target/
+dist/
+test-ledger/
+.DS_Store
+*.so
+*.log
+.env
+.yarn/
+.pnp.*
+apps/web/.next/
+apps/web/out/
+keys/
+*.keypair.json
