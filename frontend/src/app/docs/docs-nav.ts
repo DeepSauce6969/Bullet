@@ -1,5 +1,5 @@
 export type DocsNavItem = {
-  slug: string;
+  id: string;
   label: string;
 };
 
@@ -8,32 +8,31 @@ export type DocsNavSection = {
   items: DocsNavItem[];
 };
 
+/** Anchor targets on the single-page /docs route (PONS-style). */
 export const DOCS_NAV: DocsNavSection[] = [
   {
-    title: "Getting Started",
-    items: [
-      { slug: "", label: "Overview" },
-      { slug: "mechanics", label: "Floor Mechanics" },
-    ],
+    title: "Introduction",
+    items: [{ id: "overview", label: "Overview" }],
   },
   {
-    title: "Products",
+    title: "Protocol",
     items: [
-      { slug: "mint-burn", label: "Mint & Burn" },
-      { slug: "loans", label: "Loans & Leverage" },
-      { slug: "pre-deposit", label: "Genesis Pre-Deposit" },
+      { id: "mechanics", label: "Floor mechanics" },
+      { id: "mint-burn", label: "Mint & burn" },
+      { id: "loans", label: "Loans & leverage" },
+      { id: "pre-deposit", label: "Genesis pre-deposit" },
     ],
   },
   {
     title: "Reference",
     items: [
-      { slug: "fees", label: "Fees & APR" },
-      { slug: "contracts", label: "Contracts" },
-      { slug: "risks", label: "Risks" },
+      { id: "fees", label: "Fees & APR" },
+      { id: "contracts", label: "Contracts" },
+      { id: "risks", label: "Risk disclosures" },
     ],
   },
 ];
 
-export function docsHref(slug: string): string {
-  return slug ? `/docs/${slug}` : "/docs";
-}
+export const DOCS_SECTION_IDS = DOCS_NAV.flatMap((s) =>
+  s.items.map((i) => i.id)
+);
