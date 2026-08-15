@@ -37,8 +37,8 @@
     --sky: #65ea7e;
     --stone: #1d6666;
     --deep: #0f0f0f;
-    /* Hotspot at center of 24×24 Ansem logo cursor */
-    --cursor-custom: url('/custom-cursor.png') 12 12, auto;
+    /* Hotspot at copper tip (top-right) of 24×24 bullet cartridge cursor */
+    --cursor-custom: url('/custom-cursor.png') 23 0, auto;
   }
 
   html,
