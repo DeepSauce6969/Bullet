@@ -41,8 +41,11 @@ The committed `Cargo.lock` pins `edition2024` crates (e.g. `zeroize_derive 1.5.0
 - Root lint is `npm run lint` → `prettier --check`. It reports style diffs on existing source and on `frontend/.next/` build output (no prettier-ignore); the command runs, it just isn't clean.
 - `npm install` re-writes `frontend/package-lock.json` (committed lockfile was generated with a different npm version). This churn is expected; discard it (`git checkout frontend/package-lock.json`) if you don't intend to update deps.
 
-### Devnet leverage / program upgrade
+### Devnet leverage / program upgrade / redeploy
 
-- Leverage on **deployed** devnet fails with `FloorWouldDecrease` (6004) until the program is upgraded with commit `4a6fc4b` (stop disbursing borrowed ANSEM). Source already has the fix; bytecode may lag.
-- Upgrade **in place** (same id `4PTGwC7…`): `npm run upgrade:devnet` → `scripts/upgrade-devnet.sh`. Needs the upgrade-authority JSON keypair for pubkey `5RE5aMBxrUkD9iEfX5Tj5E5CCpNZhdGptswAV8nYF1bK` (`UPGRADE_AUTHORITY_KEYPAIR` or `~/.config/solana/bullet-upgrade-authority.json`). Do **not** `anchor keys sync`.
-- Smoke check after upgrade: `npm run simulate:leverage` (expect `"err": null`).
+- Old program `4PTGwC7…` (authority `5RE5a…`) still has the buggy leverage bytecode. If that authority key is lost, do a **fresh redeploy** instead of upgrade.
+- Fresh redeploy (new program id, new PDAs, new mock Ansem): fund deployer `~/.config/solana/id.json` with ~5 SOL on devnet, then `npm run redeploy:devnet` (`scripts/redeploy-devnet.sh`). This runs keys sync → build → deploy → init → genesis → `sync-frontend-addresses`.
+- After redeploy, commit updated `deployed-devnet.json`, `programs/bullet/src/lib.rs` `declare_id!`, `Anchor.toml`, and `frontend/src/lib/bullet.ts` addresses.
+- Keep the deployer seed phrase **out of git** (`~/.config/solana/DEPLOYER_SEED.txt`, gitignored). Store it as a Cursor secret for future agents.
+- Smoke check: `npm run simulate:leverage` (expect `"err": null`).
+- In-place upgrade of `4PTGwC7…` only if you recover the `5RE5a…` keypair: `npm run upgrade:devnet`.

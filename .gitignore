@@ -13,3 +13,6 @@ apps/web/.next/
 apps/web/out/
 keys/
 *.keypair.json
+**/DEPLOYER_SEED.txt
+**/bullet-deployer.json
+**/bullet-upgrade-authority.json

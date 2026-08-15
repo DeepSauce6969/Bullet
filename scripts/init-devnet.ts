@@ -26,7 +26,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
-const PROGRAM_ID = new PublicKey("4PTGwC7KTRZhjhKgXXrD9WTRyoCb8cpKWy6HAsaMXvBj");
+const PROGRAM_ID = new PublicKey("Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3");
 const RPC = "https://api.devnet.solana.com";
 const MAX_SUPPLY = BigInt(2_500) * BigInt(1_000_000); // 2500 * 1e6
 
