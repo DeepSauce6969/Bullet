@@ -65,7 +65,7 @@ export function HeaderContent() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-[var(--deep)]/85 border-b border-[var(--card-border)]/40 py-3 px-4 sm:px-6 lg:px-8 lg:py-3.5 safe-top backdrop-blur-md">
+      <header className="sticky top-0 z-50 bg-[var(--deep)] border-b border-white/5 py-3 px-4 sm:px-6 lg:px-8 lg:py-3.5 safe-top">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <button

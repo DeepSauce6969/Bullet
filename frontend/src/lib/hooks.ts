@@ -15,6 +15,7 @@ import {
   leveragePosition,
   liquidateLoan,
   mintBullet,
+  placeholderGenesisVaults,
   repayLoan,
   withdrawGenesis,
   type GenesisVaultView,
@@ -145,23 +146,26 @@ export function useBulletActions() {
 export function useGenesisVaults() {
   const { publicKey } = useWallet();
   const { connection } = useConnection();
-  const [vaults, setVaults] = useState<GenesisVaultView[]>([]);
+  const [vaults, setVaults] = useState<GenesisVaultView[]>(placeholderGenesisVaults);
   const [isLoading, setIsLoading] = useState(true);
 
-  const refetch = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      setVaults(await fetchGenesisVaults(publicKey, connection));
-    } catch {
-      setVaults([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [publicKey, connection]);
+  const refetch = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) setIsLoading(true);
+      try {
+        setVaults(await fetchGenesisVaults(publicKey, connection));
+      } catch {
+        setVaults(placeholderGenesisVaults());
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [publicKey, connection]
+  );
 
   useEffect(() => {
     refetch();
-    const id = setInterval(refetch, 15_000);
+    const id = setInterval(() => refetch({ silent: true }), 15_000);
     return () => clearInterval(id);
   }, [refetch]);
 

@@ -29,54 +29,56 @@ export function DocsSidebar() {
   }, []);
 
   return (
-    <aside className="docs-sidebar hidden lg:flex lg:flex-col lg:w-[260px] lg:shrink-0 lg:sticky lg:top-[4.5rem] lg:h-[calc(100vh-4.5rem)] lg:border-r lg:border-[var(--card-border)]/25">
-      <div className="px-5 pt-6 pb-4 border-b border-[var(--card-border)]/20">
-        <Link href="/" className="inline-flex items-center gap-2 btn-haptic">
-          <Image
-            src="/BULLET-LOGO.png"
-            alt="Bullet"
-            width={120}
-            height={36}
-            className="h-7 w-auto object-contain"
-          />
-        </Link>
-        <p className="mt-3 text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--muted)]">
-          Documentation
-        </p>
-      </div>
+    <aside className="docs-sidebar hidden lg:flex lg:w-[280px] lg:shrink-0 lg:sticky lg:top-[4.5rem] lg:h-[calc(100vh-4.5rem)] lg:py-4 lg:pl-4 lg:pr-3">
+      <div className="flex flex-col min-h-0 w-full bg-[var(--deep)] p-6 rounded-2xl border border-white/5">
+        <div className="pb-4 mb-4 border-b border-white/5">
+          <Link href="/" className="inline-flex items-center gap-2 btn-haptic">
+            <Image
+              src="/BULLET-LOGO.png"
+              alt="Bullet"
+              width={120}
+              height={36}
+              className="h-7 w-auto object-contain"
+            />
+          </Link>
+          <p className="mt-3 text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--muted)]">
+            Documentation
+          </p>
+        </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 font-mono text-[11px]">
-        {DOCS_NAV.map((section) => (
-          <div key={section.title}>
-            <p className="px-2 mb-2 text-[9px] uppercase tracking-[0.18em] text-[var(--muted)] font-bold">
-              {section.title}
-            </p>
-            <ul className="space-y-0.5">
-              {section.items.map((item) => {
-                const active = activeId === item.id;
-                return (
-                  <li key={item.id}>
-                    <a
-                      href={`#${item.id}`}
-                      className={`docs-sidebar-link ${active ? "is-active" : ""}`}
-                    >
-                      {item.label}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
-      </nav>
+        <nav className="flex-1 overflow-y-auto space-y-5 font-mono text-[11px] pr-1">
+          {DOCS_NAV.map((section) => (
+            <div key={section.title}>
+              <p className="px-2 mb-2 text-[9px] uppercase tracking-[0.18em] text-[var(--muted)] font-bold">
+                {section.title}
+              </p>
+              <ul className="space-y-0.5">
+                {section.items.map((item) => {
+                  const active = activeId === item.id;
+                  return (
+                    <li key={item.id}>
+                      <a
+                        href={`#${item.id}`}
+                        className={`docs-sidebar-link ${active ? "is-active" : ""}`}
+                      >
+                        {item.label}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </nav>
 
-      <div className="px-4 py-4 border-t border-[var(--card-border)]/20">
-        <Link
-          href="/mint-and-burn"
-          className="flex items-center justify-center w-full py-2.5 rounded-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-dark)] text-[var(--accent-foreground)] text-[10px] font-bold tracking-wider btn-haptic"
-        >
-          OPEN APP
-        </Link>
+        <div className="pt-4 mt-4 border-t border-white/5">
+          <Link
+            href="/mint-and-burn"
+            className="flex items-center justify-center w-full py-2.5 rounded-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-dark)] text-[var(--accent-foreground)] text-[10px] font-bold tracking-wider btn-haptic"
+          >
+            OPEN APP
+          </Link>
+        </div>
       </div>
     </aside>
   );

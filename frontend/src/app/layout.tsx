@@ -31,7 +31,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased bg-[#0f0f0f] selection:bg-[var(--accent)] selection:text-[var(--accent-foreground)] relative">
+      <body className="antialiased bg-[#000000] selection:bg-[var(--accent)] selection:text-[var(--accent-foreground)] relative">
         <BackgroundLayer />
         <Toaster position="bottom-right" />
 
