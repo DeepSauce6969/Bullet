@@ -12,7 +12,7 @@ const NAV_LINKS = [
   { name: "MINT & BURN", href: "/mint-and-burn", isExternal: false, disabled: false },
   { name: "BULLET LOANS", href: "/loans", isExternal: false, disabled: false },
   { name: "ANALYTICS", href: "/analytics", isExternal: false, disabled: false },
-  { name: "DOCS", href: "#", isExternal: true, disabled: false },
+  { name: "DOCS", href: "/docs", isExternal: false, disabled: false },
 ] as const;
 
 function ExternalIcon() {
@@ -48,7 +48,9 @@ export function HeaderContent() {
 
   const isNavActive = (href: string) =>
     pathname === href ||
-    (href === "/mint-and-burn" && (pathname === "/swap" || pathname === "/mint-and-burn"));
+    (href === "/mint-and-burn" &&
+      (pathname === "/swap" || pathname === "/mint-and-burn")) ||
+    (href === "/docs" && pathname.startsWith("/docs"));
 
   const linkClass = (isActive: boolean, mobile = false) => {
     const base = mobile

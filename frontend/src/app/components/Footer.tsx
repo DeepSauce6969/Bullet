@@ -23,6 +23,12 @@ export function Footer() {
         </div>
 
         <div className="flex items-center gap-4 text-[var(--foreground)] font-semibold">
+          <Link
+            href="/docs"
+            className="hover:text-[var(--accent-dark)] transition btn-haptic"
+          >
+            Docs
+          </Link>
           <a
             href="https://x.com"
             target="_blank"

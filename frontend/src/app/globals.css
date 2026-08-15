@@ -405,3 +405,108 @@ input[type="number"] {
     animation: none !important;
   }
 }
+
+/* In-app documentation (/docs) */
+.docs-prose {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--foreground);
+}
+
+.docs-prose h2 {
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--foreground);
+}
+
+.docs-prose h2:first-child {
+  margin-top: 0;
+}
+
+.docs-prose p {
+  margin-bottom: 1rem;
+  color: var(--foreground);
+}
+
+.docs-prose ul,
+.docs-prose ol {
+  margin: 0 0 1rem 1.25rem;
+}
+
+.docs-prose li {
+  margin-bottom: 0.35rem;
+}
+
+.docs-prose a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.docs-prose a:hover {
+  color: var(--accent-dark);
+}
+
+.docs-prose pre {
+  margin: 1rem 0;
+  padding: 1rem 1.25rem;
+  border-radius: 0.75rem;
+  background: var(--inset);
+  border: 1px solid color-mix(in srgb, var(--card-border) 40%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.docs-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  padding: 0.1em 0.35em;
+  border-radius: 0.35rem;
+  background: var(--inset);
+  word-break: break-all;
+}
+
+.docs-prose pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.docs-prose table {
+  width: 100%;
+  margin: 1rem 0;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.docs-prose th,
+.docs-prose td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--card-border) 35%, transparent);
+  text-align: left;
+  vertical-align: top;
+}
+
+.docs-prose th {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  background: var(--inset);
+}
+
+.docs-prose .docs-callout {
+  margin-top: 1.5rem;
+  padding: 0.875rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  font-size: 0.875rem;
+}
