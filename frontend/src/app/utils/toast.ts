@@ -7,6 +7,9 @@ export type ToastId = string | number;
 const REVERT_HINTS: Array<{ match: RegExp; label: string }> = [
   { match: /insufficient\s*(funds|balance|allowance)/i, label: "Insufficient funds" },
   { match: /transfer amount exceeds balance/i, label: "Insufficient funds" },
+  { match: /InsufficientLeverageFee/i, label: "Insufficient ANSEM for leverage fees" },
+  { match: /FloorWouldDecrease|Floor would decrease/i, label: "Floor would decrease (protocol safety check)" },
+  { match: /TradingDisabled|Trading is not enabled/i, label: "Trading is disabled" },
   { match: /not\s*whitelisted|invalid\s*proof|merkle|not\s*eligible/i, label: "Not whitelisted" },
   { match: /cap\s*reached|deposit\s*cap|exceeds?\s*(the\s*)?cap|allocation/i, label: "Cap reached" },
   { match: /user\s*rejected|denied|rejected the request/i, label: "Transaction rejected in wallet" },

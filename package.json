@@ -6,7 +6,9 @@
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
     "test": "anchor test",
-    "test:localnet": "anchor test --provider.cluster localnet"
+    "test:localnet": "anchor test --provider.cluster localnet",
+    "simulate:leverage": "tsx scripts/simulate-leverage-devnet.ts",
+    "upgrade:devnet": "bash scripts/upgrade-devnet.sh"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",

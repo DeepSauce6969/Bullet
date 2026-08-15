@@ -40,3 +40,9 @@ The committed `Cargo.lock` pins `edition2024` crates (e.g. `zeroize_derive 1.5.0
 - Frontend lint (`cd frontend && npm run lint` → bare `eslint`) currently fails: there is no ESLint v9 flat config (`eslint.config.*`) in the repo, so ESLint 9 errors out. This is a pre-existing repo state, not an environment issue.
 - Root lint is `npm run lint` → `prettier --check`. It reports style diffs on existing source and on `frontend/.next/` build output (no prettier-ignore); the command runs, it just isn't clean.
 - `npm install` re-writes `frontend/package-lock.json` (committed lockfile was generated with a different npm version). This churn is expected; discard it (`git checkout frontend/package-lock.json`) if you don't intend to update deps.
+
+### Devnet leverage / program upgrade
+
+- Leverage on **deployed** devnet fails with `FloorWouldDecrease` (6004) until the program is upgraded with commit `4a6fc4b` (stop disbursing borrowed ANSEM). Source already has the fix; bytecode may lag.
+- Upgrade **in place** (same id `4PTGwC7…`): `npm run upgrade:devnet` → `scripts/upgrade-devnet.sh`. Needs the upgrade-authority JSON keypair for pubkey `5RE5aMBxrUkD9iEfX5Tj5E5CCpNZhdGptswAV8nYF1bK` (`UPGRADE_AUTHORITY_KEYPAIR` or `~/.config/solana/bullet-upgrade-authority.json`). Do **not** `anchor keys sync`.
+- Smoke check after upgrade: `npm run simulate:leverage` (expect `"err": null`).

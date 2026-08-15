@@ -1,15 +1,11 @@
 /**
- * Simulate leverage against deployed devnet program (no wallet UI required).
+ * Simulate leverage against the deployed devnet program (no wallet UI).
  *
- * Usage:
- *   npx ts-node --compiler-options '{"module":"commonjs"}' scripts/simulate-leverage-devnet.ts
- *   # or from frontend/:
- *   node --import tsx ../scripts/simulate-leverage-devnet.ts
+ *   npx tsx scripts/simulate-leverage-devnet.ts
+ *   LEVERAGE_AMOUNT=10 LEVERAGE_DAYS=30 npx tsx scripts/simulate-leverage-devnet.ts
+ *   LEVERAGE_USER=<base58> npx tsx scripts/simulate-leverage-devnet.ts
  *
- * Env:
- *   LEVERAGE_AMOUNT  — human ANSEM notional (default 10)
- *   LEVERAGE_DAYS    — loan days (default 30)
- *   LEVERAGE_USER    — optional base58 pubkey of a funded ANSEM holder
+ * After upgrading the on-chain program, a successful sim prints `"err": null`.
  */
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -30,29 +26,8 @@ import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const LOG = "/opt/cursor/logs/debug.log";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RPC = "https://api.devnet.solana.com";
-
-function dlog(
-  hypothesisId: string,
-  message: string,
-  data: Record<string, unknown>
-) {
-  fs.appendFileSync(
-    LOG,
-    JSON.stringify({
-      hypothesisId,
-      location: "scripts/simulate-leverage-devnet.ts",
-      message,
-      data,
-      timestamp: Date.now(),
-      runId: "sim-script",
-    }) + "\n"
-  );
-}
 
 function sighash(name: string): Buffer {
   return crypto
@@ -99,10 +74,8 @@ async function main() {
   if (!protoInfo) throw new Error("protocol missing on devnet");
   const d = Buffer.from(protoInfo.data);
   let o = 8 + 32 * 7 + 2;
-  const totalMinted = d.readBigUInt64LE(o);
-  o += 8;
-  const maxSupply = d.readBigUInt64LE(o);
-  o += 8;
+  o += 8; // totalMinted
+  o += 8; // maxSupply
   const totalBorrowed = d.readBigUInt64LE(o);
   o += 8;
   const totalSupply = d.readBigUInt64LE(o);
@@ -113,7 +86,6 @@ async function main() {
 
   const vaultAcc = await getAccount(connection, vault);
 
-  // Resolve a funded user: env override, else recent program signer with ANSEM
   let user: PublicKey | null = process.env.LEVERAGE_USER
     ? new PublicKey(process.env.LEVERAGE_USER)
     : null;
@@ -180,7 +152,11 @@ async function main() {
         { pubkey: userBullet, isSigner: false, isWritable: true },
         { pubkey: loan, isSigner: false, isWritable: true },
         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        {
+          pubkey: ASSOCIATED_TOKEN_PROGRAM_ID,
+          isSigner: false,
+          isWritable: false,
+        },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       data,
@@ -191,39 +167,39 @@ async function main() {
   tx.recentBlockhash = blockhash;
   tx.feePayer = user;
 
-  const snapshot = {
+  console.log("snapshot", {
     tradingEnabled,
     loanCount: loanCount.toString(),
     totalSupply: totalSupply.toString(),
-    totalMinted: totalMinted.toString(),
     totalBorrowed: totalBorrowed.toString(),
-    maxSupply: maxSupply.toString(),
     vaultAmount: vaultAcc.amount.toString(),
     user: user.toBase58(),
     userAnsemBal: userBal.amount.toString(),
     amount: amount.toString(),
     days,
     loan: loan.toBase58(),
-  };
-  console.log("snapshot", snapshot);
-  dlog("H0", "protocol snapshot before simulate", snapshot);
+  });
 
   const sim = await connection.simulateTransaction(tx);
-  const result = {
-    err: sim.value.err,
-    units: sim.value.unitsConsumed,
-    logs: sim.value.logs,
-  };
-  console.log(JSON.stringify(result, null, 2));
-  dlog("H_floor", "simulateTransaction result", result as unknown as Record<string, unknown>);
+  const logs = sim.value.logs ?? [];
+  const anchor = logs.find((l) => l.includes("AnchorError")) ?? null;
+  console.log(
+    JSON.stringify(
+      {
+        err: sim.value.err,
+        units: sim.value.unitsConsumed,
+        anchorError: anchor,
+        logTail: logs.slice(-8),
+      },
+      null,
+      2
+    )
+  );
 
-  if (sim.value.err) {
-    process.exitCode = 1;
-  }
+  if (sim.value.err) process.exitCode = 1;
 }
 
 main().catch((e) => {
   console.error(e);
-  dlog("H_sim", "script fatal", { error: e instanceof Error ? e.message : String(e) });
   process.exit(1);
 });

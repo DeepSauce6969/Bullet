@@ -18,28 +18,6 @@ import {
 } from "@/lib/hooks";
 import { estimateInterest, parseUnits } from "@/lib/bullet";
 
-/** #region agent log */
-function agentLogLoans(
-  hypothesisId: string,
-  message: string,
-  data: Record<string, unknown> = {}
-) {
-  const payload = {
-    hypothesisId,
-    location: "loans/page.tsx:handleCreateLoan",
-    message,
-    data,
-    timestamp: Date.now(),
-  };
-  fetch("/api/debug-log", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  }).catch(() => {});
-  console.info("[agent-log]", payload);
-}
-/** #endregion */
-
 /**
  * Effective annualized borrow cost:
  * ((Total Fees / Principal) * (365 / Duration in days)) * 100
@@ -291,18 +269,6 @@ export default function LoansPage() {
     setIsLoading(true);
     try {
       const raw = parseUnits(amount);
-      // #region agent log
-      agentLogLoans("H_ui", "create loan click", {
-        mode,
-        amount,
-        raw: raw.toString(),
-        borrowDays,
-        tradingEnabled,
-        hasLoan,
-        ansemBalance,
-        bulletBalance,
-      });
-      // #endregion
       const sig =
         mode === "borrow"
           ? await actions.borrow(raw, borrowDays)
@@ -317,17 +283,8 @@ export default function LoansPage() {
       setAmount("");
       refetchAll();
     } catch (e: unknown) {
-      // #region agent log
       const parsed = parseContractError(e);
-      agentLogLoans("H_ui", "create loan error", {
-        mode,
-        message: e instanceof Error ? e.message : String(e),
-        parsed,
-      });
-      // #endregion
-      showTxToast.error(
-        e instanceof Error ? e.message : parsed.message || "Loan failed"
-      );
+      showTxToast.error(parsed.message || "Loan failed");
     } finally {
       setIsLoading(false);
     }

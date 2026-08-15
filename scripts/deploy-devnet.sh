@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Deploy Bullet to Solana Devnet.
+# Fresh deploy of Bullet to Solana Devnet (NEW program keypair / id).
 # Requires ~3.5 SOL in ~/.config/solana/id.json
 # Fund via https://faucet.solana.com (devnet) if CLI airdrop is rate-limited.
+#
+# To upgrade the EXISTING deployed id (4PTGwC7…) without changing addresses,
+# use scripts/upgrade-devnet.sh instead (needs the upgrade-authority keypair).
 
 set -euo pipefail
 
