@@ -91,6 +91,16 @@ async function main() {
     : null;
 
   if (!user) {
+    // Prefer fee recipient / deployer (init mints mock Ansem to them).
+    try {
+      const ata = getAssociatedTokenAddressSync(ansemMint, feeRecipient);
+      const acc = await getAccount(connection, ata);
+      if (acc.amount > 1_000_000n) user = feeRecipient;
+    } catch {
+      /* fall through */
+    }
+  }
+  if (!user) {
     const sigs = await connection.getSignaturesForAddress(programId, {
       limit: 20,
     });
@@ -104,7 +114,6 @@ async function main() {
         ? tx.transaction.message.getAccountKeys().staticAccountKeys
         : (tx.transaction.message as { accountKeys: PublicKey[] }).accountKeys;
       const signer = keys[0];
-      if (signer.equals(protocol) || signer.equals(feeRecipient)) continue;
       try {
         const ata = getAssociatedTokenAddressSync(ansemMint, signer);
         const acc = await getAccount(connection, ata);
