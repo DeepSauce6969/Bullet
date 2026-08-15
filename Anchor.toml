@@ -5,20 +5,20 @@ anchor_version = "0.31.1"
 resolution = true
 skip-lint = false
 
+[programs.localnet]
+bullet = "4PTGwC7KTRZhjhKgXXrD9WTRyoCb8cpKWy6HAsaMXvBj"
+
 [programs.devnet]
 bullet = "4PTGwC7KTRZhjhKgXXrD9WTRyoCb8cpKWy6HAsaMXvBj"
 
-[programs.localnet]
-bullet = "Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3"
-
 [programs.mainnet]
-bullet = "Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3"
+bullet = "4PTGwC7KTRZhjhKgXXrD9WTRyoCb8cpKWy6HAsaMXvBj"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "Devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
