@@ -100,6 +100,11 @@ export default function LoansPage() {
 
   const floor = Number(metrics.floorPrice) || 1;
   const hasLoan = loanData.hasLoan;
+  const tradingEnabled = metrics.tradingEnabled;
+  const isExpired =
+    hasLoan &&
+    loanData.endTs > 0 &&
+    loanData.endTs <= Math.floor(Date.now() / 1000);
 
   const formatVal = (val: string | number) =>
     Number(val).toLocaleString("en-US", {
@@ -228,6 +233,10 @@ export default function LoansPage() {
       setVisible(true);
       return;
     }
+    if (!tradingEnabled) {
+      showTxToast.error("Trading is currently disabled on the protocol.");
+      return;
+    }
     if (hasLoan) {
       showTxToast.error("Use account with no loans");
       return;
@@ -289,6 +298,10 @@ export default function LoansPage() {
       showTxToast.error("No active loan found");
       return;
     }
+    if (isExpired) {
+      showTxToast.error("Loan expired — use Liquidate instead of repay.");
+      return;
+    }
     setIsLoading(true);
     try {
       const sig = await actions.repay(loanData.address);
@@ -308,6 +321,31 @@ export default function LoansPage() {
     }
   };
 
+  const handleLiquidate = async () => {
+    if (!connected) {
+      setVisible(true);
+      return;
+    }
+    if (!loanData.address) {
+      showTxToast.error("No active loan found");
+      return;
+    }
+    if (!isExpired) {
+      showTxToast.error("Loan has not expired yet.");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const sig = await actions.liquidate(loanData.address);
+      showTxToast.success("Loan liquidated!", sig);
+      refetchAll();
+    } catch (e: unknown) {
+      showTxToast.error(e instanceof Error ? e.message : "Liquidation failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 py-4 px-4">
       <div className="text-left space-y-1 border-b border-[var(--card-border)]/10 pb-4">
@@ -318,6 +356,11 @@ export default function LoansPage() {
           Borrow liquid Ansem backed by BULLET or open automated leveraged
           positions.
         </p>
+        {!tradingEnabled && (
+          <p className="text-xs font-mono text-amber-600 pt-2">
+            Trading is paused — new borrows, leverage, mint, and burn are disabled until the protocol re-enables trading.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -620,6 +663,7 @@ export default function LoansPage() {
             onClick={handleCreateLoan}
             disabled={
               isLoading ||
+              !tradingEnabled ||
               !amount ||
               Number(amount) <= 0 ||
               hasLoan ||
@@ -633,6 +677,8 @@ export default function LoansPage() {
           >
             {!connected
               ? "CONNECT WALLET"
+              : !tradingEnabled
+                ? "TRADING PAUSED"
               : hasLoan
                 ? "USE ACCOUNT WITH NO LOANS"
                 : mode === "leverage" &&
@@ -655,8 +701,12 @@ export default function LoansPage() {
               <h3 className="text-sm font-serif font-bold text-[var(--foreground)]">
                 Your Active Loans
               </h3>
-              <span className="slvr-pill px-2 py-0.5 text-[10px] font-mono font-bold text-[var(--accent-dark)]">
-                {loanData.hasLoan ? "ACTIVE" : "NO LOANS"}
+              <span
+                className={`slvr-pill px-2 py-0.5 text-[10px] font-mono font-bold ${
+                  isExpired ? "text-red-600" : "text-[var(--accent-dark)]"
+                }`}
+              >
+                {loanData.hasLoan ? (isExpired ? "EXPIRED" : "ACTIVE") : "NO LOANS"}
               </span>
             </div>
 
@@ -673,7 +723,7 @@ export default function LoansPage() {
                   </div>
                   <button
                     onClick={() => handleManageLoan("closePosition")}
-                    disabled={isLoading}
+                    disabled={isLoading || isExpired}
                     className="px-2.5 py-1 btn-primary rounded-lg font-bold text-[10px] btn-haptic disabled:opacity-50"
                   >
                     CLOSE ALL
@@ -695,13 +745,20 @@ export default function LoansPage() {
                   </div>
                 </div>
 
+                {isExpired && (
+                  <p className="text-[10px] font-mono text-red-500 text-center">
+                    Loan expired — repay is disabled. Any wallet can liquidate.
+                  </p>
+                )}
+
                 <div className="grid grid-cols-1 gap-2 text-[10px] font-bold">
                   <button
                     onClick={() => {
                       setActiveAction("repay");
                       setActionAmount("");
                     }}
-                    className={`py-2 rounded-lg border btn-haptic ${
+                    disabled={isExpired}
+                    className={`py-2 rounded-lg border btn-haptic disabled:opacity-50 ${
                       activeAction === "repay"
                         ? "bg-gradient-to-r from-[var(--accent)] to-[var(--accent-dark)] text-[var(--accent-foreground)]"
                         : "bg-[var(--inset)] text-[var(--foreground)]"
@@ -709,6 +766,15 @@ export default function LoansPage() {
                   >
                     REPAY LOAN
                   </button>
+                  {isExpired && (
+                    <button
+                      onClick={handleLiquidate}
+                      disabled={isLoading}
+                      className="py-2 rounded-lg border border-red-500/40 text-red-500 btn-haptic disabled:opacity-50"
+                    >
+                      LIQUIDATE EXPIRED LOAN
+                    </button>
+                  )}
                 </div>
 
                 {activeAction === "repay" && (

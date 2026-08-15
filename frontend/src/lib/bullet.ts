@@ -497,6 +497,33 @@ export async function repayLoan(
   ]);
 }
 
+/** Liquidate an expired loan (any signer). Burns locked collateral. */
+export async function liquidateLoan(
+  wallet: WalletContextState,
+  loanAddress: string,
+  connection: Connection = getConnection()
+): Promise<string> {
+  if (!wallet.publicKey) throw new Error("Wallet not connected");
+  const liquidator = wallet.publicKey;
+  const loan = new PublicKey(loanAddress);
+
+  return sendIx(wallet, connection, [
+    new TransactionInstruction({
+      programId: PROGRAM_ID,
+      keys: [
+        { pubkey: liquidator, isSigner: true, isWritable: true },
+        { pubkey: PROTOCOL_PDA, isSigner: false, isWritable: true },
+        { pubkey: BULLET_MINT, isSigner: false, isWritable: true },
+        { pubkey: VAULT, isSigner: false, isWritable: true },
+        { pubkey: COLLATERAL_VAULT, isSigner: false, isWritable: true },
+        { pubkey: loan, isSigner: false, isWritable: true },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      ],
+      data: disc("liquidate"),
+    }),
+  ]);
+}
+
 export async function leveragePosition(
   wallet: WalletContextState,
   ansemAmount: bigint,

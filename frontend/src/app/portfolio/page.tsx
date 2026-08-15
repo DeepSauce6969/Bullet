@@ -16,6 +16,10 @@ export default function PortfolioPage() {
   const { loan: loanData, isLoading: isLoanLoading, refetch: refetchLoan } =
     useLoan();
   const actions = useBulletActions();
+  const isExpired =
+    loanData.hasLoan &&
+    loanData.endTs > 0 &&
+    loanData.endTs <= Math.floor(Date.now() / 1000);
 
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
@@ -48,7 +52,9 @@ export default function PortfolioPage() {
         showTxToast.info("Confirming repay...");
         sig = await actions.repay(loanData.address);
       } else if (actionType === "liquidate") {
-        throw new Error("Liquidate from Loans after expiry — coming next");
+        if (!isExpired) throw new Error("Loan has not expired yet");
+        showTxToast.info("Confirming liquidation...");
+        sig = await actions.liquidate(loanData.address);
       }
 
       if (sig) {
@@ -132,8 +138,12 @@ export default function PortfolioPage() {
           <h2 className="text-sm font-serif font-bold text-[var(--foreground)]">
             Active Loan Contract
           </h2>
-          <span className="slvr-pill px-2.5 py-0.5 text-[10px] font-mono font-bold text-emerald-800">
-            {loanData.hasLoan ? "ACTIVE" : "NO LOANS"}
+          <span
+            className={`slvr-pill px-2.5 py-0.5 text-[10px] font-mono font-bold ${
+              isExpired ? "text-red-700" : "text-emerald-800"
+            }`}
+          >
+            {loanData.hasLoan ? (isExpired ? "EXPIRED" : "ACTIVE") : "NO LOANS"}
           </span>
         </div>
 
@@ -151,12 +161,18 @@ export default function PortfolioPage() {
               </div>
               <button
                 onClick={() => executeAction("closePosition")}
-                disabled={isLoading}
+                disabled={isLoading || isExpired}
                 className="px-3.5 py-2 bg-[var(--accent)] text-[var(--accent-foreground)] rounded-xl font-bold hover:brightness-110 transition font-mono text-[10px] btn-haptic disabled:opacity-50"
               >
                 CLOSE ALL
               </button>
             </div>
+
+            {isExpired && (
+              <p className="text-xs font-mono text-red-500 text-center">
+                Loan expired — repay is disabled. Liquidate to burn collateral and clear the position.
+              </p>
+            )}
 
             <div className="grid grid-cols-2 gap-2 font-mono text-[10px] font-bold">
               <button
@@ -164,7 +180,8 @@ export default function PortfolioPage() {
                   setActiveAction("repay");
                   setActionAmount("");
                 }}
-                className={`py-2 rounded-lg border btn-haptic ${
+                disabled={isExpired}
+                className={`py-2 rounded-lg border btn-haptic disabled:opacity-50 ${
                   activeAction === "repay"
                     ? "bg-[var(--accent)] text-[var(--accent-foreground)] border-[var(--accent)]"
                     : "surface-pill border hover:border-[var(--accent)]"
@@ -174,10 +191,10 @@ export default function PortfolioPage() {
               </button>
               <button
                 onClick={() => executeAction("liquidate")}
-                disabled={isLoading}
-                className="py-2 rounded-lg border btn-haptic surface-pill border hover:border-[var(--accent)] disabled:opacity-50"
+                disabled={isLoading || !isExpired}
+                className="py-2 rounded-lg border btn-haptic surface-pill border hover:border-red-500/50 text-red-500 disabled:opacity-50"
               >
-                LIQUIDATE (IF EXPIRED)
+                LIQUIDATE
               </button>
             </div>
 

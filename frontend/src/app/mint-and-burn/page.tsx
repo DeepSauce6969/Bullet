@@ -84,6 +84,7 @@ export default function MintAndBurnPage() {
   } = useTokenPrices();
 
   const floorPrice = metrics.floorPrice;
+  const tradingEnabled = metrics.tradingEnabled;
   const payToken: "ANSEM" | "BULLET" = isMinting ? "ANSEM" : "BULLET";
   const receiveToken: "ANSEM" | "BULLET" = isMinting ? "BULLET" : "ANSEM";
   const payBalance = isMinting ? ansemBalance : bulletBalance;
@@ -131,6 +132,10 @@ export default function MintAndBurnPage() {
   const handleExecute = async () => {
     if (!connected) {
       setVisible(true);
+      return;
+    }
+    if (!tradingEnabled) {
+      showTxToast.error("Trading is currently disabled on the protocol.");
       return;
     }
     if (!amount || Number(amount) <= 0) {
@@ -197,10 +202,16 @@ export default function MintAndBurnPage() {
 
   const isAmountTooHigh = Number(amount || "0") > Number(payBalance);
   const isButtonDisabled =
-    isLoading || isAmountTooHigh || !amount || Number(amount) <= 0;
+    isLoading ||
+    isAmountTooHigh ||
+    !amount ||
+    Number(amount) <= 0 ||
+    !tradingEnabled;
 
   const buttonText = !connected
     ? "Connect Wallet"
+    : !tradingEnabled
+      ? "Trading Paused"
     : isLoading
       ? "Processing..."
       : isAmountTooHigh
@@ -241,6 +252,12 @@ export default function MintAndBurnPage() {
           {faucetLoading ? "…" : "CLAIM TEST ANSEM"}
         </button>
       </div>
+
+      {!tradingEnabled && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-mono text-amber-700">
+          Trading is paused — mint and burn are disabled until the protocol re-enables trading.
+        </div>
+      )}
 
       <div className="slvr-card bank-card p-5 sm:p-6 space-y-0">
         <h2 className="text-lg font-semibold text-[var(--foreground)] mb-5">Mint / Burn $BULLET</h2>

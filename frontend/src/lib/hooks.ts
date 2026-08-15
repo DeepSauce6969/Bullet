@@ -13,6 +13,7 @@ import {
   fetchMetrics,
   fetchTokenBalances,
   leveragePosition,
+  liquidateLoan,
   mintBullet,
   repayLoan,
   withdrawGenesis,
@@ -131,6 +132,8 @@ export function useBulletActions() {
     leverage: (amount: bigint, days: number) =>
       leveragePosition(wallet, amount, days, connection),
     repay: (loanAddress: string) => repayLoan(wallet, loanAddress, connection),
+    liquidate: (loanAddress: string) =>
+      liquidateLoan(wallet, loanAddress, connection),
     depositGenesis: (tier: number, amount: bigint) =>
       depositGenesis(wallet, tier, amount, connection),
     withdrawGenesis: (tier: number) =>
