@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { showTxToast } from "@/app/utils/toast";
+import { showTxToast, parseContractError } from "@/app/utils/toast";
 import { AnimatedNumber } from "@/app/components/AnimatedNumber";
 import { PremiumSlider } from "@/app/components/PremiumSlider";
 import { ShieldCheck, RefreshCw } from "lucide-react";
@@ -17,6 +17,28 @@ import {
   useProtocolMetrics,
 } from "@/lib/hooks";
 import { estimateInterest, parseUnits } from "@/lib/bullet";
+
+/** #region agent log */
+function agentLogLoans(
+  hypothesisId: string,
+  message: string,
+  data: Record<string, unknown> = {}
+) {
+  const payload = {
+    hypothesisId,
+    location: "loans/page.tsx:handleCreateLoan",
+    message,
+    data,
+    timestamp: Date.now(),
+  };
+  fetch("/api/debug-log", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).catch(() => {});
+  console.info("[agent-log]", payload);
+}
+/** #endregion */
 
 /**
  * Effective annualized borrow cost:
@@ -269,6 +291,18 @@ export default function LoansPage() {
     setIsLoading(true);
     try {
       const raw = parseUnits(amount);
+      // #region agent log
+      agentLogLoans("H_ui", "create loan click", {
+        mode,
+        amount,
+        raw: raw.toString(),
+        borrowDays,
+        tradingEnabled,
+        hasLoan,
+        ansemBalance,
+        bulletBalance,
+      });
+      // #endregion
       const sig =
         mode === "borrow"
           ? await actions.borrow(raw, borrowDays)
@@ -283,7 +317,17 @@ export default function LoansPage() {
       setAmount("");
       refetchAll();
     } catch (e: unknown) {
-      showTxToast.error(e instanceof Error ? e.message : "Loan failed");
+      // #region agent log
+      const parsed = parseContractError(e);
+      agentLogLoans("H_ui", "create loan error", {
+        mode,
+        message: e instanceof Error ? e.message : String(e),
+        parsed,
+      });
+      // #endregion
+      showTxToast.error(
+        e instanceof Error ? e.message : parsed.message || "Loan failed"
+      );
     } finally {
       setIsLoading(false);
     }

@@ -319,10 +319,56 @@ export async function fetchActiveLoan(
   return EMPTY_LOAN;
 }
 
+/** #region agent log */
+function agentLog(
+  hypothesisId: string,
+  location: string,
+  message: string,
+  data: Record<string, unknown> = {}
+): void {
+  const payload = { hypothesisId, location, message, data, timestamp: Date.now() };
+  // Browser → Next API route writes NDJSON to /opt/cursor/logs/debug.log
+  if (typeof fetch !== "undefined") {
+    fetch("/api/debug-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+  }
+  // Also mirror to console for local DevTools
+  console.info("[agent-log]", payload);
+}
+
+function enrichSimError(
+  err: unknown,
+  logs: string[] | null | undefined
+): Error {
+  const raw =
+    err && typeof err === "object"
+      ? JSON.stringify(err)
+      : String(err ?? "unknown");
+  const joined = (logs ?? []).join("\n");
+  const anchor =
+    (logs ?? []).find((l) => l.includes("AnchorError") || l.includes("Error Code")) ??
+    "";
+  const customMatch = raw.match(/Custom["\s:]*(\d+)/) || joined.match(/Error Number: (\d+)/);
+  const code = customMatch?.[1];
+  const msg = [
+    anchor || "Transaction simulation failed",
+    code ? `custom=${code}` : null,
+    raw !== "{}" ? `err=${raw}` : null,
+  ]
+    .filter(Boolean)
+    .join(" | ");
+  return new Error(msg);
+}
+/** #endregion */
+
 async function sendIx(
   wallet: WalletContextState,
   connection: Connection,
-  ixs: TransactionInstruction[]
+  ixs: TransactionInstruction[],
+  debugTag = "sendIx"
 ): Promise<string> {
   if (!wallet.publicKey || !wallet.sendTransaction) {
     throw new Error("Wallet not connected");
@@ -332,12 +378,55 @@ async function sendIx(
     await connection.getLatestBlockhash();
   tx.recentBlockhash = blockhash;
   tx.feePayer = wallet.publicKey;
-  const sig = await wallet.sendTransaction(tx, connection);
-  await connection.confirmTransaction(
-    { signature: sig, blockhash, lastValidBlockHeight },
-    "confirmed"
-  );
-  return sig;
+
+  // #region agent log
+  try {
+    const sim = await connection.simulateTransaction(tx);
+    agentLog("H_sim", `${debugTag}:simulate`, "pre-send simulateTransaction", {
+      err: sim.value.err,
+      units: sim.value.unitsConsumed ?? null,
+      logs: sim.value.logs?.slice(-20) ?? [],
+      feePayer: wallet.publicKey.toBase58(),
+      ixCount: ixs.length,
+      programIds: ixs.map((ix) => ix.programId.toBase58()),
+    });
+    if (sim.value.err) {
+      const enriched = enrichSimError(sim.value.err, sim.value.logs);
+      agentLog("H_floor", `${debugTag}:simulate-fail`, enriched.message, {
+        err: sim.value.err,
+        logs: sim.value.logs ?? [],
+      });
+      throw enriched;
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("AnchorError")) throw e;
+    if (e instanceof Error && e.message.includes("simulation failed")) throw e;
+    agentLog("H_sim", `${debugTag}:simulate-throw`, "simulate threw", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+    // Fall through to wallet send if simulate RPC itself failed
+  }
+  // #endregion
+
+  try {
+    const sig = await wallet.sendTransaction(tx, connection);
+    await connection.confirmTransaction(
+      { signature: sig, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
+    // #region agent log
+    agentLog("H_sim", `${debugTag}:success`, "tx confirmed", { sig });
+    // #endregion
+    return sig;
+  } catch (e) {
+    // #region agent log
+    agentLog("H_sim", `${debugTag}:send-fail`, "wallet sendTransaction failed", {
+      error: e instanceof Error ? e.message : String(e),
+      name: e instanceof Error ? e.name : typeof e,
+    });
+    // #endregion
+    throw e;
+  }
 }
 
 export async function mintBullet(
@@ -545,35 +634,90 @@ export async function leveragePosition(
   data.writeBigUInt64LE(ansemAmount, 8);
   data.writeUInt16LE(days, 16);
 
-  return sendIx(wallet, connection, [
-    createAssociatedTokenAccountIdempotentInstruction(
-      user,
-      userBullet,
-      user,
-      BULLET_MINT
-    ),
-    new TransactionInstruction({
-      programId: PROGRAM_ID,
-      keys: [
-        { pubkey: user, isSigner: true, isWritable: true },
-        { pubkey: PROTOCOL_PDA, isSigner: false, isWritable: true },
-        { pubkey: BULLET_MINT, isSigner: false, isWritable: true },
-        { pubkey: ANSEM_MINT, isSigner: false, isWritable: false },
-        { pubkey: VAULT, isSigner: false, isWritable: true },
-        { pubkey: POL_VAULT, isSigner: false, isWritable: true },
-        { pubkey: COLLATERAL_VAULT, isSigner: false, isWritable: true },
-        { pubkey: FEE_RECIPIENT, isSigner: false, isWritable: false },
-        { pubkey: feeAta, isSigner: false, isWritable: true },
-        { pubkey: userAnsem, isSigner: false, isWritable: true },
-        { pubkey: userBullet, isSigner: false, isWritable: true },
-        { pubkey: loan, isSigner: false, isWritable: true },
-        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      ],
-      data,
-    }),
-  ]);
+  // #region agent log
+  let userAnsemBal: string | null = null;
+  let feeAtaExists = false;
+  try {
+    const [ua, fa] = await Promise.all([
+      getAccount(connection, userAnsem).catch(() => null),
+      connection.getAccountInfo(feeAta),
+    ]);
+    userAnsemBal = ua ? ua.amount.toString() : "missing-ata";
+    feeAtaExists = !!fa;
+  } catch {
+    /* ignore */
+  }
+  agentLog("H_accounts", "leveragePosition:entry", "building leverage ix", {
+    user: user.toBase58(),
+    ansemAmount: ansemAmount.toString(),
+    days,
+    loanCount: proto.loanCount.toString(),
+    loan: loan.toBase58(),
+    tradingEnabled: proto.tradingEnabled,
+    totalSupply: proto.totalSupply.toString(),
+    totalBorrowed: proto.totalBorrowed.toString(),
+    feeRecipient: FEE_RECIPIENT.toBase58(),
+    feeAta: feeAta.toBase58(),
+    feeAtaExists,
+    userAnsem: userAnsem.toBase58(),
+    userAnsemBal,
+    userBullet: userBullet.toBase58(),
+    disc: Array.from(data.subarray(0, 8)),
+    keys: [
+      user.toBase58(),
+      PROTOCOL_PDA.toBase58(),
+      BULLET_MINT.toBase58(),
+      ANSEM_MINT.toBase58(),
+      VAULT.toBase58(),
+      POL_VAULT.toBase58(),
+      COLLATERAL_VAULT.toBase58(),
+      FEE_RECIPIENT.toBase58(),
+      feeAta.toBase58(),
+      userAnsem.toBase58(),
+      userBullet.toBase58(),
+      loan.toBase58(),
+    ],
+  });
+  // #endregion
+
+  return sendIx(
+    wallet,
+    connection,
+    [
+      createAssociatedTokenAccountIdempotentInstruction(
+        user,
+        userBullet,
+        user,
+        BULLET_MINT
+      ),
+      new TransactionInstruction({
+        programId: PROGRAM_ID,
+        keys: [
+          { pubkey: user, isSigner: true, isWritable: true },
+          { pubkey: PROTOCOL_PDA, isSigner: false, isWritable: true },
+          { pubkey: BULLET_MINT, isSigner: false, isWritable: true },
+          { pubkey: ANSEM_MINT, isSigner: false, isWritable: false },
+          { pubkey: VAULT, isSigner: false, isWritable: true },
+          { pubkey: POL_VAULT, isSigner: false, isWritable: true },
+          { pubkey: COLLATERAL_VAULT, isSigner: false, isWritable: true },
+          { pubkey: FEE_RECIPIENT, isSigner: false, isWritable: false },
+          { pubkey: feeAta, isSigner: false, isWritable: true },
+          { pubkey: userAnsem, isSigner: false, isWritable: true },
+          { pubkey: userBullet, isSigner: false, isWritable: true },
+          { pubkey: loan, isSigner: false, isWritable: true },
+          { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+          {
+            pubkey: ASSOCIATED_TOKEN_PROGRAM_ID,
+            isSigner: false,
+            isWritable: false,
+          },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        data,
+      }),
+    ],
+    "leveragePosition"
+  );
 }
 
 // --- Genesis pre-deposit vaults ---
