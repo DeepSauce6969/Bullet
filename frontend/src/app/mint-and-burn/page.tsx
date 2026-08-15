@@ -6,7 +6,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { showTxToast, parseContractError } from "@/app/utils/toast";
 import { AnimatedNumber } from "@/app/components/AnimatedNumber";
-import { TimePricePanel } from "@/app/components/TimePricePanel";
+import { BulletPricePanel } from "@/app/components/BulletPricePanel";
 import { useTokenPrices } from "@/app/hooks/useTokenPrices";
 import {
   useBulletActions,
@@ -42,7 +42,7 @@ function TokenBadge({ symbol }: { symbol: "ANSEM" | "BULLET" }) {
   return (
     <div className="flex items-center shrink-0">
       <Image
-        src="/TIME.png"
+        src="/BULLET.png"
         alt="BULLET"
         width={32}
         height={32}
@@ -69,9 +69,9 @@ export default function MintAndBurnPage() {
   const [statusMessage, setStatusMessage] = useState("");
 
   const {
-    protocolTimeUsd,
-    marketTimeUsd,
-    marketTimeInSpy,
+    protocolBulletUsd,
+    marketBulletUsd,
+    marketBulletInSpy,
     backingRatioPct,
     isLoadingFloor,
     isLoadingMarket,
@@ -80,7 +80,7 @@ export default function MintAndBurnPage() {
     arbitrageHint,
     arbitrageDirection,
     formatSpyUsd,
-    formatTimeUsd,
+    formatBulletUsd,
   } = useTokenPrices();
 
   const floorPrice = metrics.floorPrice;
@@ -210,15 +210,15 @@ export default function MintAndBurnPage() {
           : "Burn BULLET";
 
   const getUsdValue = (val: string, tokenIsBullet: boolean) =>
-    tokenIsBullet ? formatTimeUsd(val) : formatSpyUsd(val);
+    tokenIsBullet ? formatBulletUsd(val) : formatSpyUsd(val);
 
   return (
     <div className="max-w-[640px] mx-auto space-y-6 py-4 px-4">
-      <TimePricePanel
-        protocolTimeInSpy={floorPrice}
-        protocolTimeUsd={protocolTimeUsd}
-        marketTimeInSpy={marketTimeInSpy}
-        marketTimeUsd={marketTimeUsd}
+      <BulletPricePanel
+        protocolBulletInSpy={floorPrice}
+        protocolBulletUsd={protocolBulletUsd}
+        marketBulletInSpy={marketBulletInSpy}
+        marketBulletUsd={marketBulletUsd}
         backingRatioPct={backingRatioPct}
         isLoadingProtocol={isLoadingFloor}
         isLoadingMarket={isLoadingMarket}

@@ -4,7 +4,7 @@ import React from "react";
 import { TooltipInfo } from "@/app/components/TooltipInfo";
 import { Skeleton } from "@/app/components/Skeleton";
 import { AnimatedNumber } from "@/app/components/AnimatedNumber";
-import { TimePricePanel } from "@/app/components/TimePricePanel";
+import { BulletPricePanel } from "@/app/components/BulletPricePanel";
 import { useProtocolMetrics } from "@/lib/hooks";
 import { useTokenPrices } from "@/app/hooks/useTokenPrices";
 import { BUY_FEE_PCT, DEFAULT_MAX_SUPPLY, SELL_FEE_PCT } from "@/lib/bullet";
@@ -12,9 +12,9 @@ import { BUY_FEE_PCT, DEFAULT_MAX_SUPPLY, SELL_FEE_PCT } from "@/lib/bullet";
 export default function AnalyticsPage() {
   const { data, isLoading, refetch } = useProtocolMetrics();
   const {
-    protocolTimeUsd,
-    marketTimeUsd,
-    marketTimeInSpy,
+    protocolBulletUsd,
+    marketBulletUsd,
+    marketBulletInSpy,
     backingRatioPct,
     arbitrageSpreadPct,
     arbitrageHint,
@@ -47,11 +47,11 @@ export default function AnalyticsPage() {
         </button>
       </div>
 
-      <TimePricePanel
-        protocolTimeInSpy={floorPrice}
-        protocolTimeUsd={protocolTimeUsd}
-        marketTimeInSpy={marketTimeInSpy}
-        marketTimeUsd={marketTimeUsd}
+      <BulletPricePanel
+        protocolBulletInSpy={floorPrice}
+        protocolBulletUsd={protocolBulletUsd}
+        marketBulletInSpy={marketBulletInSpy}
+        marketBulletUsd={marketBulletUsd}
         backingRatioPct={backingRatio}
         isLoadingProtocol={isLoading}
         isLoadingMarket={isLoadingMarket}

@@ -6,7 +6,7 @@ use crate::state::*;
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, MintTo, Transfer};
 
-/// TIME leverage loop:
+/// Leverage loop:
 /// bakeFee = 1% of A
 /// userSpy = A - bakeFee
 /// userBorrow = 0.99 * userSpy

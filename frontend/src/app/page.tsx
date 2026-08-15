@@ -13,9 +13,9 @@ import { deployment } from "@/app/config/deployment";
 export default function HomePage() {
   const { data, isLoading } = useProtocolMetrics();
   const {
-    protocolTimeUsd,
-    marketTimeUsd,
-    marketTimeInSpy,
+    protocolBulletUsd,
+    marketBulletUsd,
+    marketBulletInSpy,
     isIndicativeUsd,
     isLoading: isPricesLoading,
     isLoadingMarket,
@@ -75,14 +75,14 @@ export default function HomePage() {
               <span className="text-xs text-[var(--muted)]">ANSEM</span>
             </div>
             <span className="text-[9px] font-mono text-[var(--muted)] block">
-              ~ ${!isPricesLoading ? protocolTimeUsd.toFixed(2) : "—"} USD
+              ~ ${!isPricesLoading ? protocolBulletUsd.toFixed(2) : "—"} USD
               {isIndicativeUsd && !isPricesLoading ? " · indicative" : ""}
             </span>
             <span className="text-[9px] font-mono text-[var(--muted)] block">
               Market:{" "}
-              {isLoadingMarket || marketTimeInSpy == null
+              {isLoadingMarket || marketBulletInSpy == null
                 ? "—"
-                : `${marketTimeInSpy.toFixed(4)} ANSEM · ~$${marketTimeUsd?.toFixed(2)}`}
+                : `${marketBulletInSpy.toFixed(4)} ANSEM · ~$${marketBulletUsd?.toFixed(2)}`}
             </span>
             <span className="text-[9px] font-mono text-[var(--accent-dark)] font-bold block">
               ↑ Up Only Floor

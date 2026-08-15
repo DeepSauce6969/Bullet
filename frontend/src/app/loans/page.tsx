@@ -122,7 +122,7 @@ export default function LoansPage() {
   const borrowBreakdown = useMemo(() => {
     const zero = {
       expirationLabel: "—",
-      collateralTime: "0.0000",
+      collateralBullet: "0.0000",
       collateralAnsemEq: "0.0000",
       loanAmount: "0.0000",
       interestFee: "0.0000",
@@ -139,12 +139,12 @@ export default function LoansPage() {
     // Interest paid upfront from wallet; user receives full borrow principal
     const totalReceived = amt;
     const safeFloor = floor > 0 ? floor : 1;
-    const collateralTime = amt / (safeFloor * 0.99);
+    const collateralBullet = amt / (safeFloor * 0.99);
     const collateralAnsemEq = amt / 0.99;
 
     return {
       expirationLabel: formatExpiration(borrowDays),
-      collateralTime: collateralTime.toFixed(4),
+      collateralBullet: collateralBullet.toFixed(4),
       collateralAnsemEq: collateralAnsemEq.toFixed(4),
       loanAmount: loanAmount.toFixed(4),
       interestFee: interest.toFixed(4),
@@ -194,8 +194,8 @@ export default function LoansPage() {
 
   const insufficientBulletCollateral = useMemo(() => {
     if (mode !== "borrow" || !amount || Number(amount) <= 0) return false;
-    return Number(bulletBalance) < Number(borrowBreakdown.collateralTime);
-  }, [mode, amount, bulletBalance, borrowBreakdown.collateralTime]);
+    return Number(bulletBalance) < Number(borrowBreakdown.collateralBullet);
+  }, [mode, amount, bulletBalance, borrowBreakdown.collateralBullet]);
 
   const estimatedBorrowApr = useMemo(() => {
     if (!amount || Number(amount) <= 0 || borrowDays <= 0) return 0;
@@ -244,7 +244,7 @@ export default function LoansPage() {
     }
     if (mode === "borrow" && insufficientBulletCollateral) {
       showTxToast.error(
-        `Insufficient BULLET collateral (need ${borrowBreakdown.collateralTime} BULLET).`
+        `Insufficient BULLET collateral (need ${borrowBreakdown.collateralBullet} BULLET).`
       );
       return;
     }
@@ -514,7 +514,7 @@ export default function LoansPage() {
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-[var(--muted)]">Collateral required</span>
                   <span className="font-medium text-[var(--foreground)] text-right">
-                    {formatVal(borrowBreakdown.collateralTime)} BULLET{" "}
+                    {formatVal(borrowBreakdown.collateralBullet)} BULLET{" "}
                     <span className="text-[var(--muted)]">
                       ({formatVal(borrowBreakdown.collateralAnsemEq)} ANSEM)
                     </span>

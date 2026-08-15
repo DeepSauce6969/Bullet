@@ -43,7 +43,7 @@ pub fn handler(ctx: Context<MintBullet>, ansem_amount: u64) -> Result<()> {
         .checked_sub(bribe)
         .ok_or(BulletError::MathOverflow)?;
 
-    // Curve uses backing after full deposit (before fee skim), matching TIME docs.
+    // Curve uses backing after full deposit (before fee skim).
     let backing_for_curve = math::backing(vault_after_in, protocol.total_borrowed)?;
     let gross = math::ansem_to_bullet_gross(
         ansem_amount,

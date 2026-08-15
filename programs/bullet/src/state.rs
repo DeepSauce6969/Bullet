@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 /// Initialize stores whatever mint you pass (use this address on mainnet).
 pub const ANSEM_MINT_MAINNET: &str = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
 
-/// Protocol parameters (TIME-compatible).
+/// Protocol parameters (fee / floor model).
 pub const PROTOCOL_FEE_BPS: u64 = 250; // 2.5%
 pub const BPS_DENOM: u64 = 10_000;
 pub const OUT_FEE_NUM: u64 = 975; // user receives 97.5%

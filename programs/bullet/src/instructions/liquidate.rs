@@ -38,7 +38,7 @@ pub fn handler(ctx: Context<Liquidate>) -> Result<()> {
         collateral,
     )?;
 
-    // Keep total_borrowed unchanged — borrowed Ansem stays in backing math (TIME behavior).
+    // Keep total_borrowed unchanged — borrowed Ansem stays in backing math (floor rises for holders).
     let new_supply = protocol
         .total_supply
         .checked_sub(collateral)

@@ -1,6 +1,6 @@
 # Bullet
 
-TIME-style **Ansem-backed** protocol on Solana — mint / burn / loans / leverage, **no Uniswap v4 hooks**.
+**Ansem-backed** up-only protocol on Solana — mint / burn / loans / leverage, **no Uniswap v4 hooks**.
 
 ## Backing asset
 
@@ -10,7 +10,7 @@ TIME-style **Ansem-backed** protocol on Solana — mint / burn / loans / leverag
 
 Protocol token: **$BULLET** (6 decimals, max supply **2,500** by default).
 
-## Scope (vs TIME on Base)
+## Scope
 
 | Feature | Bullet |
 |---------|--------|
@@ -90,7 +90,7 @@ Create the bribe wallet’s Ansem ATA before the first mint/burn/borrow.
 
 ## Risk note
 
-TIME’s floor is in **SPY** (index). Bullet’s floor is in **Ansem** (meme). Floor-in-Ansem can rise while USD value dumps. Loans/leverage at 99% LTV on a volatile meme liquidate easily.
+Bullet’s floor is denominated in **Ansem** (a meme), not USD. The floor can rise in Ansem terms while the USD value dumps. Loans/leverage at 99% LTV on a volatile meme liquidate easily.
 
 ## Program id (placeholder)
 

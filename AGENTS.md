@@ -1,6 +1,6 @@
 # Bullet
 
-TIME-style, Ansem-backed protocol on Solana. Two components:
+Ansem-backed, up-only protocol on Solana. Two components:
 
 - **Anchor program** (`programs/bullet/`) — the on-chain Solana program (Rust/Anchor `0.31.1`). Client tests in `tests/bullet.ts`, client helpers in `sdk/` and `scripts/`.
 - **Frontend** (`frontend/`) — Next.js 15 dApp (Solana wallet stack) that reads the protocol on Solana devnet. This is the primary user-facing app.

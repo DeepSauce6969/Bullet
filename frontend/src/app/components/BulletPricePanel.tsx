@@ -70,11 +70,11 @@ function PriceMetricCard({
   );
 }
 
-interface TimePricePanelProps {
-  protocolTimeInSpy: string | number;
-  protocolTimeUsd: number;
-  marketTimeInSpy: number | null;
-  marketTimeUsd: number | null;
+interface BulletPricePanelProps {
+  protocolBulletInSpy: string | number;
+  protocolBulletUsd: number;
+  marketBulletInSpy: number | null;
+  marketBulletUsd: number | null;
   backingRatioPct: string;
   isLoadingProtocol?: boolean;
   isLoadingMarket?: boolean;
@@ -86,11 +86,11 @@ interface TimePricePanelProps {
 }
 
 /** Protocol floor vs optional market — market left blank until an AMM exists on Solana. */
-export function TimePricePanel({
-  protocolTimeInSpy,
-  protocolTimeUsd,
-  marketTimeInSpy,
-  marketTimeUsd,
+export function BulletPricePanel({
+  protocolBulletInSpy,
+  protocolBulletUsd,
+  marketBulletInSpy,
+  marketBulletUsd,
   backingRatioPct,
   isLoadingProtocol,
   isLoadingMarket,
@@ -98,15 +98,15 @@ export function TimePricePanel({
   arbitrageSpreadPct,
   arbitrageHint,
   className = "",
-}: TimePricePanelProps) {
+}: BulletPricePanelProps) {
   return (
     <div className={`space-y-3 ${className}`}>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <PriceMetricCard
           label="Protocol Price"
           tooltip="Mint/burn floor: Ansem per 1 BULLET (treasury backing ÷ supply)."
-          spyValue={protocolTimeInSpy}
-          usdValue={protocolTimeUsd}
+          spyValue={protocolBulletInSpy}
+          usdValue={protocolBulletUsd}
           isLoading={isLoadingProtocol}
           isIndicativeUsd={isIndicativeUsd}
           sublabel="Mint & Burn · ANSEM per BULLET"
@@ -115,9 +115,9 @@ export function TimePricePanel({
         <PriceMetricCard
           label="Market"
           tooltip="Secondary market mid-price when an AMM is available. Currently protocol-only on Devnet."
-          spyValue={marketTimeInSpy}
-          usdValue={marketTimeUsd}
-          isLoading={isLoadingMarket && marketTimeInSpy == null}
+          spyValue={marketBulletInSpy}
+          usdValue={marketBulletUsd}
+          isLoading={isLoadingMarket && marketBulletInSpy == null}
           isIndicativeUsd
           sublabel="Coming soon"
           unit="ANSEM"

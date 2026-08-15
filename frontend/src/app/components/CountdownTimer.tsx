@@ -52,7 +52,7 @@ function VaultClosesInHeader() {
 }
 
 /**
- * Genesis countdown — TIME visual without EVM genesis contract.
+ * Genesis countdown — visual only (no EVM genesis contract).
  * Uses `targetDate` or `NEXT_PUBLIC_GENESIS_END`.
  */
 export function CountdownTimer({

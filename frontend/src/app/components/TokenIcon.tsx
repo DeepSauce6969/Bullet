@@ -9,10 +9,10 @@ interface TokenIconProps {
 }
 
 export function TokenIcon({ symbol = "ANSEM", className = "" }: TokenIconProps) {
-  const isBullet = symbol.toUpperCase() === "BULLET" || symbol.toUpperCase() === "TIME";
+  const isBullet = symbol.toUpperCase() === "BULLET";
   return (
     <Image
-      src={isBullet ? "/TIME.png" : "/ansem-logo.png"}
+      src={isBullet ? "/BULLET.png" : "/ansem-logo.png"}
       alt={isBullet ? "BULLET" : "ANSEM"}
       width={22}
       height={22}

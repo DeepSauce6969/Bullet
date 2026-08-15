@@ -12,7 +12,7 @@ pub use ix_accounts::*;
 declare_id!("4PTGwC7KTRZhjhKgXXrD9WTRyoCb8cpKWy6HAsaMXvBj");
 
 /// Bullet protocol — Ansem-backed up-only floor token.
-/// Mirrors TIME (Base) mechanics without Uniswap v4 hooks:
+/// Up-only floor mechanics without Uniswap v4 hooks:
 /// mint / burn / borrow / repay / leverage / liquidate.
 #[program]
 pub mod bullet {
@@ -50,7 +50,7 @@ pub mod bullet {
         instructions::repay::handler(ctx)
     }
 
-    /// One-click leveraged BULLET exposure (TIME-style loop).
+    /// One-click leveraged BULLET exposure (leverage loop).
     pub fn leverage(
         ctx: Context<Leverage>,
         ansem_amount: u64,

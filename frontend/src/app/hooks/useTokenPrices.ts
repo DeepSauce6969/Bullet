@@ -12,13 +12,13 @@ export const ANSEM_USD_PRICE = 0.01;
 export function useTokenPrices() {
   const { data, isLoading } = useProtocolMetrics();
   const floor = Number(data.floorPrice) || 1;
-  const protocolTimeUsd = floor * ANSEM_USD_PRICE;
+  const protocolBulletUsd = floor * ANSEM_USD_PRICE;
 
   return {
-    protocolTimeInSpy: data.floorPrice,
-    protocolTimeUsd,
-    marketTimeInSpy: null as number | null,
-    marketTimeUsd: null as number | null,
+    protocolBulletInSpy: data.floorPrice,
+    protocolBulletUsd,
+    marketBulletInSpy: null as number | null,
+    marketBulletUsd: null as number | null,
     backingRatioPct: data.backingRatio,
     arbitrageSpreadPct: null as number | null,
     arbitrageHint: null as string | null,
@@ -29,7 +29,7 @@ export function useTokenPrices() {
     isLoadingMarket: false,
     formatSpyUsd: (val: string | number) =>
       (Number(val || 0) * ANSEM_USD_PRICE).toFixed(2),
-    formatTimeUsd: (val: string | number) =>
+    formatBulletUsd: (val: string | number) =>
       (Number(val || 0) * floor * ANSEM_USD_PRICE).toFixed(2),
   };
 }

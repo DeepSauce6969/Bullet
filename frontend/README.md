@@ -1,6 +1,6 @@
 # Bullet Frontend
 
-Next.js 15 UI for the Bullet protocol (TIME-like banknote design, Solana wallet stack).
+Next.js 15 UI for the Bullet protocol (banknote-style design, Solana wallet stack).
 
 ## Dev
 
