@@ -59,7 +59,7 @@ async function expectAnchorError(p: Promise<unknown>, code: string): Promise<voi
 async function waitForProgram(
   connection: anchor.web3.Connection,
   pid: PublicKey,
-  tries = 60
+  tries = 120
 ): Promise<void> {
   for (let i = 0; i < tries; i++) {
     const info = await connection.getAccountInfo(pid).catch(() => null);
@@ -67,6 +67,24 @@ async function waitForProgram(
     await new Promise((r) => setTimeout(r, 500));
   }
   throw new Error(`program ${pid.toBase58()} not loaded on the validator`);
+}
+
+/** Retry flaky RPC/setup steps while the local validator warms up. */
+async function withValidatorRetry<T>(
+  fn: () => Promise<T>,
+  label: string,
+  tries = 8
+): Promise<T> {
+  let last: unknown;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      last = e;
+      await new Promise((r) => setTimeout(r, 750));
+    }
+  }
+  throw last instanceof Error ? last : new Error(`${label} failed after ${tries} tries`);
 }
 
 /** Assert a promise rejects (any error). */
@@ -102,8 +120,11 @@ describe("bullet protocol", () => {
 
   // Secondary actor for isolation / negative tests.
   const user2 = Keypair.generate();
+  const user3 = Keypair.generate();
   let user2Ansem: PublicKey;
   let user2Bullet: PublicKey;
+  let user3Ansem: PublicKey;
+  let user3Bullet: PublicKey;
 
   const pda = (seeds: (Buffer | Uint8Array)[]) =>
     PublicKey.findProgramAddressSync(seeds, program.programId)[0];
@@ -135,14 +156,21 @@ describe("bullet protocol", () => {
     await waitForProgram(connection, TOKEN_PROGRAM_ID);
     await waitForProgram(connection, ASSOCIATED_TOKEN_PROGRAM_ID);
 
-    ansemMint = await createMint(connection, wallet.payer, wallet.publicKey, null, 6);
+    ansemMint = await withValidatorRetry(
+      () => createMint(connection, wallet.payer, wallet.publicKey, null, 6),
+      "createMint"
+    );
 
     feeRecipient = Keypair.generate();
-    feeRecipientAta = await createAssociatedTokenAccount(
-      connection,
-      wallet.payer,
-      ansemMint,
-      feeRecipient.publicKey
+    feeRecipientAta = await withValidatorRetry(
+      () =>
+        createAssociatedTokenAccount(
+          connection,
+          wallet.payer,
+          ansemMint,
+          feeRecipient.publicKey
+        ),
+      "createAssociatedTokenAccount feeRecipient"
     );
 
     protocolPda = pda([Buffer.from("protocol")]);
@@ -151,26 +179,82 @@ describe("bullet protocol", () => {
     polVault = pda([Buffer.from("pol_vault")]);
     collateralVault = pda([Buffer.from("collateral_vault")]);
 
-    userAnsem = await createAssociatedTokenAccount(
-      connection,
-      wallet.payer,
-      ansemMint,
-      wallet.publicKey
+    userAnsem = await withValidatorRetry(
+      () =>
+        createAssociatedTokenAccount(
+          connection,
+          wallet.payer,
+          ansemMint,
+          wallet.publicKey
+        ),
+      "createAssociatedTokenAccount user"
     );
-    await mintTo(connection, wallet.payer, ansemMint, userAnsem, wallet.payer, BigInt(1_000_000) * BigInt(ONE));
+    await withValidatorRetry(
+      () =>
+        mintTo(
+          connection,
+          wallet.payer,
+          ansemMint,
+          userAnsem,
+          wallet.payer,
+          BigInt(1_000_000) * BigInt(ONE)
+        ),
+      "mintTo user"
+    );
     userBullet = getAssociatedTokenAddressSync(bulletMint, wallet.publicKey);
 
     // Fund user2 with SOL + ANSEM.
     const sig = await connection.requestAirdrop(user2.publicKey, 2 * LAMPORTS_PER_SOL);
     await connection.confirmTransaction(sig, "confirmed");
-    user2Ansem = await createAssociatedTokenAccount(
-      connection,
-      wallet.payer,
-      ansemMint,
-      user2.publicKey
+    user2Ansem = await withValidatorRetry(
+      () =>
+        createAssociatedTokenAccount(
+          connection,
+          wallet.payer,
+          ansemMint,
+          user2.publicKey
+        ),
+      "createAssociatedTokenAccount user2"
     );
-    await mintTo(connection, wallet.payer, ansemMint, user2Ansem, wallet.payer, BigInt(5_000) * BigInt(ONE));
+    await withValidatorRetry(
+      () =>
+        mintTo(
+          connection,
+          wallet.payer,
+          ansemMint,
+          user2Ansem,
+          wallet.payer,
+          BigInt(5_000) * BigInt(ONE)
+        ),
+      "mintTo user2"
+    );
     user2Bullet = getAssociatedTokenAddressSync(bulletMint, user2.publicKey);
+
+    const sig3 = await connection.requestAirdrop(user3.publicKey, 2 * LAMPORTS_PER_SOL);
+    await connection.confirmTransaction(sig3, "confirmed");
+    user3Ansem = await withValidatorRetry(
+      () =>
+        createAssociatedTokenAccount(
+          connection,
+          wallet.payer,
+          ansemMint,
+          user3.publicKey
+        ),
+      "createAssociatedTokenAccount user3"
+    );
+    await withValidatorRetry(
+      () =>
+        mintTo(
+          connection,
+          wallet.payer,
+          ansemMint,
+          user3Ansem,
+          wallet.payer,
+          BigInt(ONE)
+        ),
+      "mintTo user3"
+    );
+    user3Bullet = getAssociatedTokenAddressSync(bulletMint, user3.publicKey);
   });
 
   // ---- initialize ----
@@ -573,6 +657,34 @@ describe("bullet protocol", () => {
     assert.equal((before.borrowed - after.borrowed).toString(), loan.borrowedAnsem.toString());
     await expectReject(program.account.loan.fetch(leverageLoan), "leverage loan closed");
     assert.isTrue(after.floor >= before.floor, "floor must not decrease on repay");
+  });
+
+  it("rejects leverage when the wallet cannot cover upfront fees (InsufficientLeverageFee)", async () => {
+    const { proto } = await state();
+    await expectAnchorError(
+      program.methods
+        .leverage(new anchor.BN(100 * ONE), 30)
+        .accountsPartial({
+          user: user3.publicKey,
+          protocol: protocolPda,
+          bulletMint,
+          ansemMint,
+          vault,
+          polVault,
+          collateralVault,
+          feeRecipient: feeRecipient.publicKey,
+          feeRecipientAta,
+          userAnsem: user3Ansem,
+          userBullet: user3Bullet,
+          loan: loanPda(user3.publicKey, proto.loanCount),
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([user3])
+        .rpc(),
+      "InsufficientLeverageFee"
+    );
   });
 
   it("rejects liquidating a loan that has not expired", async () => {

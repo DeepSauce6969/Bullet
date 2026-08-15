@@ -341,4 +341,67 @@ describe("bullet loan liquidation (bankrun clock warp)", () => {
     assert.isTrue(after.floor >= before.floor, "floor must not decrease on leverage liquidation");
     assert.isTrue(await s.loanClosed(loan), "loan account closed");
   });
+
+  it("rejects repay on an expired loan (LoanExpired)", async () => {
+    const s = await setup();
+    const protoBeforeBorrow = await s.program.account.protocol.fetch(s.protocolPda);
+    const loan = s.loanPda(protoBeforeBorrow.loanCount);
+
+    await s.program.methods
+      .borrow(new anchor.BN(5 * ONE), 1)
+      .accountsPartial({
+        user: s.context.payer.publicKey,
+        protocol: s.protocolPda,
+        bulletMint: s.bulletMint,
+        ansemMint: s.ansemMint,
+        vault: s.vault,
+        polVault: s.polVault,
+        collateralVault: s.collateralVault,
+        feeRecipient: s.feeRecipient.publicKey,
+        feeRecipientAta: s.feeRecipientAta,
+        userAnsem: s.userAnsem,
+        userBullet: s.userBullet,
+        loan,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    const loanAcc = await s.program.account.loan.fetch(loan);
+    await s.warpPast(loanAcc.endTs);
+
+    let threw = false;
+    try {
+      await s.program.methods
+        .repay()
+        .accountsPartial({
+          user: s.context.payer.publicKey,
+          protocol: s.protocolPda,
+          bulletMint: s.bulletMint,
+          ansemMint: s.ansemMint,
+          vault: s.vault,
+          collateralVault: s.collateralVault,
+          userAnsem: s.userAnsem,
+          userBullet: s.userBullet,
+          loan,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .rpc();
+    } catch (e: unknown) {
+      threw = true;
+      const err = e as { error?: { errorCode?: { code?: string } }; errorCode?: { code?: string } };
+      const got = err?.error?.errorCode?.code ?? err?.errorCode?.code;
+      if (got) {
+        assert.equal(got, "LoanExpired", `expected LoanExpired, got ${got}`);
+      } else {
+        const msg = String(e);
+        assert.isTrue(
+          msg.includes("LoanExpired") || msg.includes("Loan already expired"),
+          `expected LoanExpired in ${msg}`
+        );
+      }
+    }
+    assert.isTrue(threw, "expected repay to throw LoanExpired");
+  });
 });
