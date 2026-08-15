@@ -37,7 +37,7 @@ const FALLBACK_ISO =
   process.env.NEXT_PUBLIC_GENESIS_END ?? "2026-12-31T00:00:00Z";
 
 const CIRCLE_CLASS =
-  "w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#0f0f0f] border border-[var(--accent)]/40 text-white flex items-center justify-center text-xl sm:text-2xl font-bold font-mono";
+  "w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#000000] border border-[var(--accent)]/40 text-white flex items-center justify-center text-xl sm:text-2xl font-bold font-mono";
 
 function VaultClosesInHeader() {
   return (

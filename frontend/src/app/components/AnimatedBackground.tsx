@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Mesh-glow SVG background — Light Green (#65ea7e) + Stormy Teal (#1d6666)
- * on Chaos Black (#0f0f0f).
+ * Near-black canvas with faint lime / teal glows that drift very slowly.
+ * Chrome stays a lighter charcoal so it lifts off the void.
  */
 export function AnimatedBackground() {
   return (
@@ -19,88 +19,90 @@ export function AnimatedBackground() {
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
-          <linearGradient id="lime-core" x1="100%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#65ea7e" stopOpacity="0.9" />
-            <stop offset="45%" stopColor="#3ccf6a" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#0f0f0f" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="teal-soft" x1="0%" y1="20%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#1d6666" stopOpacity="0.85" />
-            <stop offset="50%" stopColor="#154d4d" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#0f0f0f" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="teal-rim" x1="0%" y1="50%" x2="100%" y2="50%">
-            <stop offset="0%" stopColor="#1d6666" stopOpacity="0" />
-            <stop offset="40%" stopColor="#1d6666" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#1d6666" stopOpacity="0" />
-          </linearGradient>
-          <filter id="mesh-glow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="28" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
+          <radialGradient id="lime-blob" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#65ea7e" stopOpacity="0.55" />
+            <stop offset="45%" stopColor="#3ccf6a" stopOpacity="0.16" />
+            <stop offset="100%" stopColor="#000000" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="lime-soft" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#65ea7e" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#000000" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="teal-blob" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#1d6666" stopOpacity="0.5" />
+            <stop offset="50%" stopColor="#154d4d" stopOpacity="0.14" />
+            <stop offset="100%" stopColor="#000000" stopOpacity="0" />
+          </radialGradient>
+          <filter id="mesh-glow" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="42" />
           </filter>
-          <filter id="mesh-soft-blur" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="18" />
+          <filter id="mesh-haze" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="28" />
           </filter>
         </defs>
 
-        {/* Left stormy teal swirl */}
-        <g className="sky-drift" style={{ animationDelay: "0s" }}>
-          <path
-            d="M -80 120 L 420 460 L -40 820 Z"
-            fill="url(#teal-soft)"
+        {/* Top-right lime — primary, slowest drift */}
+        <g className="sky-drift" style={{ animationDuration: "42s" }}>
+          <ellipse
+            cx="1180"
+            cy="160"
+            rx="340"
+            ry="260"
+            fill="url(#lime-blob)"
             filter="url(#mesh-glow)"
-            opacity="0.9"
-          />
-          <path
-            d="M 40 200 L 360 450 L 60 720 Z"
-            fill="#1d6666"
-            filter="url(#mesh-soft-blur)"
-            opacity="0.4"
+            opacity="0.7"
           />
         </g>
 
-        {/* Right lime glow */}
-        <g className="sky-drift" style={{ animationDelay: "-6s" }}>
-          <path
-            d="M 720 180
-               C 860 120, 980 220, 1080 280
-               C 1200 360, 1320 420, 1480 380
-               L 1500 900 L 700 920
-               C 760 720, 700 560, 780 420
-               C 820 320, 700 240, 720 180 Z"
-            fill="url(#lime-core)"
-            filter="url(#mesh-glow)"
-            opacity="0.85"
-          />
-          <path
-            d="M 860 260
-               C 980 210, 1100 300, 1220 340
-               C 1320 370, 1400 400, 1480 360
-               L 1480 700
-               C 1280 640, 1120 580, 980 520
-               C 880 470, 820 360, 860 260 Z"
-            fill="#65ea7e"
-            filter="url(#mesh-soft-blur)"
-            opacity="0.32"
+        {/* Mid-right smaller lime */}
+        <g className="sky-drift-alt" style={{ animationDuration: "36s", animationDelay: "-12s" }}>
+          <ellipse
+            cx="980"
+            cy="380"
+            rx="180"
+            ry="140"
+            fill="url(#lime-soft)"
+            filter="url(#mesh-haze)"
+            opacity="0.55"
           />
         </g>
 
+        {/* Bottom-left stormy teal */}
+        <g className="sky-drift-alt" style={{ animationDuration: "48s", animationDelay: "-8s" }}>
+          <ellipse
+            cx="180"
+            cy="720"
+            rx="380"
+            ry="280"
+            fill="url(#teal-blob)"
+            filter="url(#mesh-glow)"
+            opacity="0.65"
+          />
+        </g>
+
+        {/* Bottom-center teal wash */}
         <ellipse
           cx="720"
-          cy="780"
-          rx="640"
-          ry="120"
-          fill="url(#teal-rim)"
+          cy="860"
+          rx="560"
+          ry="140"
+          fill="url(#teal-blob)"
+          filter="url(#mesh-haze)"
           className="sky-pulse"
+          opacity="0.45"
         />
 
-        <g fill="none" stroke="#65ea7e" strokeWidth="1.2" opacity="0.18">
-          <path d="M 120 300 C 280 240, 360 380, 520 340" />
-          <path d="M 980 220 C 1120 180, 1240 300, 1380 260" />
-          <path d="M 200 620 C 380 560, 520 700, 700 640" />
+        {/* Faint lime threads — barely there */}
+        <g
+          className="sky-drift"
+          fill="none"
+          stroke="#65ea7e"
+          strokeWidth="1.4"
+          opacity="0.14"
+          style={{ animationDuration: "52s", animationDelay: "-20s" }}
+        >
+          <path d="M 980 90 C 1120 40, 1280 160, 1420 110" />
+          <path d="M 1080 220 C 1220 180, 1340 280, 1460 240" />
         </g>
       </svg>
 

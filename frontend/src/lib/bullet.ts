@@ -691,35 +691,52 @@ export function decodeGenesisVault(data: Buffer): {
   };
 }
 
+function emptyGenesisVaultView(
+  meta: (typeof GENESIS_TIERS)[number]
+): GenesisVaultView {
+  const address = genesisVaultPda(meta.tier);
+  return {
+    ...meta,
+    address: address.toBase58(),
+    tokenVault: genesisTokenVaultPda(meta.tier).toBase58(),
+    bulletVault: genesisBulletVaultPda(meta.tier).toBase58(),
+    feeBps: meta.feePercent * 100,
+    depositCap: 0,
+    maxAllocation: 0,
+    totalRaised: 0,
+    totalBullet: 0,
+    progressPercent: 0,
+    presaleActive: false,
+    isFinalized: false,
+    exists: false,
+    userContribution: 0,
+    userClaimed: false,
+    remainingAllocation: 0,
+  };
+}
+
+/** Instant placeholders so genesis cards render before RPC returns. */
+export function placeholderGenesisVaults(): GenesisVaultView[] {
+  return GENESIS_TIERS.map(emptyGenesisVaultView);
+}
+
 export async function fetchGenesisVaults(
   owner: PublicKey | null,
   connection: Connection = getConnection()
 ): Promise<GenesisVaultView[]> {
-  const results: GenesisVaultView[] = [];
-  for (const meta of GENESIS_TIERS) {
-    const address = genesisVaultPda(meta.tier);
-    const info = await connection.getAccountInfo(address);
-    if (!info) {
-      results.push({
-        ...meta,
-        address: address.toBase58(),
-        tokenVault: genesisTokenVaultPda(meta.tier).toBase58(),
-        bulletVault: genesisBulletVaultPda(meta.tier).toBase58(),
-        feeBps: meta.feePercent * 100,
-        depositCap: 0,
-        maxAllocation: 0,
-        totalRaised: 0,
-        totalBullet: 0,
-        progressPercent: 0,
-        presaleActive: false,
-        isFinalized: false,
-        exists: false,
-        userContribution: 0,
-        userClaimed: false,
-        remainingAllocation: 0,
-      });
-      continue;
-    }
+  const vaultKeys = GENESIS_TIERS.map((meta) => genesisVaultPda(meta.tier));
+  const userKeys = owner
+    ? vaultKeys.map((vault) => userDepositPda(vault, owner))
+    : [];
+  const infos = await connection.getMultipleAccountsInfo([
+    ...vaultKeys,
+    ...userKeys,
+  ]);
+
+  return GENESIS_TIERS.map((meta, i) => {
+    const info = infos[i];
+    if (!info) return emptyGenesisVaultView(meta);
+
     const decoded = decodeGenesisVault(Buffer.from(info.data));
     const depositCap = Number(decoded.depositCap) / 1e6;
     const maxAllocation = Number(decoded.maxAllocation) / 1e6;
@@ -728,19 +745,16 @@ export async function fetchGenesisVaults(
 
     let userContribution = 0;
     let userClaimed = false;
-    if (owner) {
-      const ud = userDepositPda(address, owner);
-      const udInfo = await connection.getAccountInfo(ud);
-      if (udInfo) {
-        const d = Buffer.from(udInfo.data);
-        userContribution = Number(readU64(d, 8 + 64)) / 1e6;
-        userClaimed = d[8 + 72] !== 0;
-      }
+    const udInfo = owner ? infos[GENESIS_TIERS.length + i] : null;
+    if (udInfo) {
+      const d = Buffer.from(udInfo.data);
+      userContribution = Number(readU64(d, 8 + 64)) / 1e6;
+      userClaimed = d[8 + 72] !== 0;
     }
 
-    results.push({
+    return {
       ...meta,
-      address: address.toBase58(),
+      address: vaultKeys[i].toBase58(),
       tokenVault: decoded.tokenVault.toBase58(),
       bulletVault: decoded.bulletVault.toBase58(),
       feeBps: decoded.feeBps,
@@ -755,9 +769,8 @@ export async function fetchGenesisVaults(
       userContribution,
       userClaimed,
       remainingAllocation: Math.max(0, maxAllocation - userContribution),
-    });
-  }
-  return results;
+    };
+  });
 }
 
 export async function depositGenesis(

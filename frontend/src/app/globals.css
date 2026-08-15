@@ -2,15 +2,15 @@
 
 @theme {
   /* Chaos Black / Light Green / Stormy Teal */
-  --color-background: #0f0f0f;
+  --color-background: #000000;
   --color-foreground: #e8eee9;
-  --color-card: #161616;
+  --color-card: #1c1c1c;
   --color-card-border: #1d6666;
   --color-muted: #8aa3a3;
   --color-accent: #65ea7e;
   --color-accent-dark: #1d6666;
   --color-accent-foreground: #0f0f0f;
-  --color-inset: #1a1a1a;
+  --color-inset: #242424;
   --color-badge-closed: #1d6666;
 
   --font-sans: 'Outfit', system-ui, sans-serif;
@@ -23,22 +23,22 @@
 
 @layer base {
   :root {
-    --background: #0f0f0f;
+    --background: #000000;
     --foreground: #e8eee9;
-    --card: #161616;
+    --card: #1c1c1c;
     --card-border: #1d6666;
     --muted: #8aa3a3;
     --accent: #65ea7e;
     --accent-dark: #1d6666;
     --accent-foreground: #0f0f0f;
-    --inset: #1a1a1a;
+    --inset: #242424;
     --badge-closed: #1d6666;
     --progress-end: #1d6666;
     --sky: #65ea7e;
     --stone: #1d6666;
-    --deep: #0f0f0f;
-    /* Hotspot at copper tip (top-right) of 24×24 bullet cartridge cursor */
-    --cursor-custom: url('/custom-cursor.png') 23 0, auto;
+    --deep: #000000;
+    /* 24×24 brass bullet cursor — hotspot at the tip (top-right) */
+    --cursor-custom: url('/custom-cursor.png') 22 1, auto;
   }
 
   html,
@@ -110,7 +110,7 @@ input[type="number"] {
 /* --- CARDS --- */
 
 .time-card {
-  background: rgba(15, 15, 15, 0.88);
+  background: rgba(28, 28, 28, 0.92);
   border: 1px solid rgba(29, 102, 102, 0.55);
   border-radius: var(--radius-card);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
@@ -131,7 +131,7 @@ input[type="number"] {
 /* Legacy aliases — harmonized to new design */
 .slvr-card {
   position: relative;
-  background: rgba(15, 15, 15, 0.88);
+  background: rgba(28, 28, 28, 0.92);
   border: 1px solid rgba(29, 102, 102, 0.55);
   border-radius: var(--radius-card);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
@@ -343,35 +343,40 @@ input[type="number"] {
 .vortex-base {
   position: absolute;
   inset: 0;
-  background-color: #0f0f0f;
+  background-color: #000000;
   background-image:
-    radial-gradient(ellipse 70% 55% at 78% 28%, rgba(101, 234, 126, 0.22) 0%, transparent 55%),
-    radial-gradient(ellipse 65% 50% at 18% 62%, rgba(29, 102, 102, 0.32) 0%, transparent 58%),
-    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(29, 102, 102, 0.16) 0%, transparent 55%),
-    radial-gradient(ellipse 100% 100% at 50% 50%, #0f0f0f 42%, #000000 100%);
+    radial-gradient(ellipse 48% 36% at 84% 14%, rgba(101, 234, 126, 0.13) 0%, transparent 68%),
+    radial-gradient(ellipse 36% 28% at 62% 42%, rgba(101, 234, 126, 0.05) 0%, transparent 72%),
+    radial-gradient(ellipse 42% 32% at 10% 82%, rgba(29, 102, 102, 0.11) 0%, transparent 70%),
+    radial-gradient(ellipse 55% 26% at 50% 100%, rgba(29, 102, 102, 0.06) 0%, transparent 68%);
 }
 
 .vortex-svg {
-  opacity: 0.95;
+  opacity: 0.52;
 }
 
 .vortex-grain {
   position: absolute;
   inset: 0;
-  opacity: 0.22;
+  opacity: 0.12;
   mix-blend-mode: soft-light;
   pointer-events: none;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
 }
 
 @keyframes sky-drift {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.85; }
-  50% { transform: translate3d(1.5%, -1%, 0) scale(1.03); opacity: 1; }
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(0.7%, -0.45%, 0) scale(1.015); }
+}
+
+@keyframes sky-drift-alt {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-0.55%, 0.4%, 0) scale(1.012); }
 }
 
 @keyframes sky-pulse {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 0.95; }
+  0%, 100% { opacity: 0.38; }
+  50% { opacity: 0.62; }
 }
 
 @keyframes fade-in-up {
@@ -389,18 +394,28 @@ input[type="number"] {
   animation: fade-in-up 220ms ease-out both;
 }
 
-.sky-drift {
-  animation: sky-drift 18s ease-in-out infinite;
+.sky-drift,
+.sky-drift-alt {
   transform-box: fill-box;
   transform-origin: center;
+  will-change: transform;
+}
+
+.sky-drift {
+  animation: sky-drift 42s ease-in-out infinite;
+}
+
+.sky-drift-alt {
+  animation: sky-drift-alt 48s ease-in-out infinite;
 }
 
 .sky-pulse {
-  animation: sky-pulse 8s ease-in-out infinite;
+  animation: sky-pulse 16s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .sky-drift,
+  .sky-drift-alt,
   .sky-pulse {
     animation: none !important;
   }
@@ -432,7 +447,7 @@ input[type="number"] {
   padding: 0.65rem 0.85rem;
   border-radius: 0.75rem;
   border: 1px solid color-mix(in srgb, var(--card-border) 45%, transparent);
-  background: var(--card);
+  background: var(--deep);
   color: var(--foreground);
   font-family: var(--font-mono);
   font-size: 0.75rem;
