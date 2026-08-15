@@ -14,6 +14,10 @@ use anchor_spl::token::{self, MintTo, Transfer};
 /// interest on userBorrow
 /// user pays bakeFee + interest + overCollat
 /// protocol mints BULLET for full userSpy notional and locks as collateral with debt = userBorrow
+///
+/// The userBorrow is NOT paid out to the user: it is internal credit recorded in
+/// `total_borrowed` that backs the freshly minted collateral (so the floor does not
+/// dilute). The user repays userBorrow later to reclaim the collateral.
 pub fn handler(ctx: Context<Leverage>, ansem_amount: u64, number_of_days: u16) -> Result<()> {
     require!(ctx.accounts.protocol.trading_enabled, BulletError::TradingDisabled);
     require!(ansem_amount > 0, BulletError::ZeroAmount);
@@ -44,7 +48,6 @@ pub fn handler(ctx: Context<Leverage>, ansem_amount: u64, number_of_days: u16) -
         ctx.accounts.user_ansem.amount >= fees_total,
         BulletError::InsufficientLeverageFee
     );
-    require!(vault_bal >= user_borrow, BulletError::InsufficientBacking);
 
     // Pull fees into vault.
     token::transfer(
@@ -149,29 +152,16 @@ pub fn handler(ctx: Context<Leverage>, ansem_amount: u64, number_of_days: u16) -
         bullet_minted,
     )?;
 
-    // Disburse borrowed Ansem to user.
-    token::transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.vault.to_account_info(),
-                to: ctx.accounts.user_ansem.to_account_info(),
-                authority: ctx.accounts.protocol.to_account_info(),
-            },
-            &[seeds],
-        ),
-        user_borrow,
-    )?;
-
+    // NOTE: the borrowed Ansem is intentionally NOT disbursed. Leverage extends
+    // internal credit that backs the freshly minted collateral; the debt is recorded
+    // in `total_borrowed` and repaid later to reclaim the collateral.
     let clock = Clock::get()?;
     let end_ts = clock
         .unix_timestamp
         .checked_add((number_of_days as i64).checked_mul(SECONDS_PER_DAY).unwrap())
         .ok_or(BulletError::MathOverflow)?;
 
-    let vault_final = vault_after_fees
-        .checked_sub(user_borrow)
-        .ok_or(BulletError::InsufficientBacking)?;
+    let vault_final = vault_after_fees;
     let new_borrowed = protocol
         .total_borrowed
         .checked_add(user_borrow)
