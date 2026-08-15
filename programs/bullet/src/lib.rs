@@ -69,6 +69,11 @@ pub mod bullet {
         instructions::admin::set_fee_recipient(ctx, fee_recipient)
     }
 
+    /// Update max BULLET supply (raw 6-decimal units). Authority only.
+    pub fn set_max_supply(ctx: Context<SetMaxSupply>, max_supply: u64) -> Result<()> {
+        instructions::admin::set_max_supply(ctx, max_supply)
+    }
+
     /// Initialize a genesis pre-deposit vault tier (0=VIP, 1=Community, 2=Public).
     pub fn init_genesis_vault(
         ctx: Context<InitGenesisVault>,

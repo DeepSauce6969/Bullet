@@ -28,7 +28,7 @@ import * as os from "os";
 
 const PROGRAM_ID = new PublicKey("Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3");
 const RPC = "https://api.devnet.solana.com";
-const MAX_SUPPLY = BigInt(2_500) * BigInt(1_000_000); // 2500 * 1e6
+const MAX_SUPPLY = BigInt(5_000_000) * BigInt(1_000_000); // 5_000_000 * 1e6
 
 function loadKeypair(p: string): Keypair {
   const raw = JSON.parse(fs.readFileSync(p, "utf8"));

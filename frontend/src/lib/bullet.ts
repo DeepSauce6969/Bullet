@@ -46,7 +46,7 @@ export const EXPLORER_TX = (sig: string) =>
 
 export const BULLET_DECIMALS = 6;
 export const ANSEM_DECIMALS = 6;
-export const DEFAULT_MAX_SUPPLY = 2_500;
+export const DEFAULT_MAX_SUPPLY = 5_000_000;
 export const BUY_FEE_PCT = 2.5;
 export const SELL_FEE_PCT = 2.5;
 export const BORROW_APR_PCT = 3.9;
@@ -62,6 +62,7 @@ const IX_DISC: Record<string, number[]> = {
   leverage: [90, 173, 201, 136, 28, 211, 126, 59],
   liquidate: [223, 179, 226, 125, 48, 46, 39, 74],
   set_fee_recipient: [227, 18, 215, 42, 237, 246, 151, 66],
+  set_max_supply: [16, 207, 140, 77, 107, 20, 202, 158],
   init_genesis_vault: [216, 130, 217, 204, 17, 60, 88, 217],
   deposit_genesis: [169, 26, 78, 22, 234, 157, 233, 237],
   withdraw_genesis: [215, 26, 193, 114, 79, 4, 138, 19],
