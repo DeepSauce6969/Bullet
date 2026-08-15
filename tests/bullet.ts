@@ -55,6 +55,20 @@ async function expectAnchorError(p: Promise<unknown>, code: string): Promise<voi
   assert.isTrue(threw, `expected instruction to throw ${code}`);
 }
 
+/** Wait until a program account is loaded + executable on a freshly started validator. */
+async function waitForProgram(
+  connection: anchor.web3.Connection,
+  pid: PublicKey,
+  tries = 60
+): Promise<void> {
+  for (let i = 0; i < tries; i++) {
+    const info = await connection.getAccountInfo(pid).catch(() => null);
+    if (info?.executable) return;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`program ${pid.toBase58()} not loaded on the validator`);
+}
+
 /** Assert a promise rejects (any error). */
 async function expectReject(p: Promise<unknown>, ctx: string): Promise<void> {
   let threw = false;
@@ -117,6 +131,10 @@ describe("bullet protocol", () => {
   }
 
   before(async () => {
+    // Fresh validators can accept RPC before the SPL programs finish loading.
+    await waitForProgram(connection, TOKEN_PROGRAM_ID);
+    await waitForProgram(connection, ASSOCIATED_TOKEN_PROGRAM_ID);
+
     ansemMint = await createMint(connection, wallet.payer, wallet.publicKey, null, 6);
 
     feeRecipient = Keypair.generate();
@@ -464,41 +482,97 @@ describe("bullet protocol", () => {
   });
 
   // ---- leverage ----
-  //
-  // KNOWN ISSUE: `leverage` mints BULLET for the full `user_spy` notional straight
-  // into the collateral vault (bumping `total_supply`) while only ~1.7% of the
-  // input is added to backing. Since `floor = backing / total_supply`, the floor
-  // mechanically drops whenever `total_supply > 0`, so the `assert_floor_non_decreasing`
-  // guard makes the instruction revert with `FloorWouldDecrease` in any realistic
-  // post-genesis state. This test pins that current behavior; see the PR description
-  // for the recommended fix to the leverage floor accounting.
 
-  it("leverage currently reverts (FloorWouldDecrease) — known floor-dilution issue", async () => {
-    const { proto } = await state();
-    const leverageLoan = loanPda(wallet.publicKey, proto.loanCount);
-    await expectAnchorError(
-      program.methods
-        .leverage(new anchor.BN(20 * ONE), 30)
-        .accountsPartial({
-          user: wallet.publicKey,
-          protocol: protocolPda,
-          bulletMint,
-          ansemMint,
-          vault,
-          polVault,
-          collateralVault,
-          feeRecipient: feeRecipient.publicKey,
-          feeRecipientAta,
-          userAnsem,
-          userBullet,
-          loan: leverageLoan,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
-        })
-        .rpc(),
-      "FloorWouldDecrease"
+  let leverageLoan: PublicKey;
+
+  it("opens a one-click leveraged position (mints collateral, records debt, pays no ANSEM out)", async () => {
+    const before = await state();
+    leverageLoan = loanPda(wallet.publicKey, before.proto.loanCount);
+    const userAnsemBefore = await bal(connection, userAnsem);
+    const collatBefore = await bal(connection, collateralVault);
+
+    const notional = 20 * ONE;
+    await program.methods
+      .leverage(new anchor.BN(notional), 30)
+      .accountsPartial({
+        user: wallet.publicKey,
+        protocol: protocolPda,
+        bulletMint,
+        ansemMint,
+        vault,
+        polVault,
+        collateralVault,
+        feeRecipient: feeRecipient.publicKey,
+        feeRecipientAta,
+        userAnsem,
+        userBullet,
+        loan: leverageLoan,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    const loan = await program.account.loan.fetch(leverageLoan);
+    assert.isTrue(loan.active);
+    assert.isTrue(loan.collateralBullet.toNumber() > 0);
+    assert.isTrue(loan.borrowedAnsem.toNumber() > 0);
+
+    const after = await state();
+    // Collateral BULLET is minted straight into the collateral vault.
+    assert.equal(
+      ((await bal(connection, collateralVault)) - collatBefore).toString(),
+      loan.collateralBullet.toString()
     );
+    assert.equal((after.supply - before.supply).toString(), loan.collateralBullet.toString());
+    // Debt recorded in total_borrowed (internal credit, backs the mint).
+    assert.equal((after.borrowed - before.borrowed).toString(), loan.borrowedAnsem.toString());
+    // User pays ONLY the fees — its ANSEM balance strictly DECREASES (the borrowed
+    // leg is not disbursed), and the spend is far below the notional.
+    const spent = userAnsemBefore - (await bal(connection, userAnsem));
+    assert.isTrue(spent > 0n, "user pays leverage fees");
+    assert.isTrue(spent < BigInt(notional), "user pays only fees, not the notional");
+    assert.isTrue(spent < BigInt(loan.borrowedAnsem.toString()), "user does NOT receive the borrowed ANSEM");
+    // Floor must not decrease.
+    assert.isTrue(after.floor >= before.floor, "floor must not decrease on leverage");
+  });
+
+  it("repays a leveraged position: pays the debt and reclaims the minted collateral", async () => {
+    const before = await state();
+    const loan = await program.account.loan.fetch(leverageLoan);
+    const userBulletBefore = await bal(connection, userBullet);
+    const userAnsemBefore = await bal(connection, userAnsem);
+
+    await program.methods
+      .repay()
+      .accountsPartial({
+        user: wallet.publicKey,
+        protocol: protocolPda,
+        bulletMint,
+        ansemMint,
+        vault,
+        collateralVault,
+        userAnsem,
+        userBullet,
+        loan: leverageLoan,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .rpc();
+
+    assert.equal(
+      (userAnsemBefore - (await bal(connection, userAnsem))).toString(),
+      loan.borrowedAnsem.toString(),
+      "user pays the borrowed principal"
+    );
+    assert.equal(
+      ((await bal(connection, userBullet)) - userBulletBefore).toString(),
+      loan.collateralBullet.toString(),
+      "user reclaims the minted collateral"
+    );
+    const after = await state();
+    assert.equal((before.borrowed - after.borrowed).toString(), loan.borrowedAnsem.toString());
+    await expectReject(program.account.loan.fetch(leverageLoan), "leverage loan closed");
+    assert.isTrue(after.floor >= before.floor, "floor must not decrease on repay");
   });
 
   it("rejects liquidating a loan that has not expired", async () => {
