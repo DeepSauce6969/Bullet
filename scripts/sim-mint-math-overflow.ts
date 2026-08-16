@@ -1,6 +1,8 @@
 /**
- * Simulate mint_bullet against live deployed program to confirm error code.
- * Uses correct Token-2022 account list so failure is math, not account mismatch.
+ * Simulate mint_bullet against the live deployed program.
+ * Uses the correct Token-2022 account list so account mismatch is not confused
+ * with curve MathOverflow. After the u128 math upgrade is deployed, expect a
+ * non-MathOverflow failure (e.g. missing user ATA / insufficient funds).
  *
  * Usage: npx tsx scripts/sim-mint-math-overflow.ts
  */
@@ -33,8 +35,7 @@ const MINT_DISC = Buffer.from([9, 170, 106, 201, 179, 12, 221, 147]);
 
 async function main() {
   const connection = new Connection(RPC, "confirmed");
-  // Fake user — simulation only; will fail on token balance if it gets past math,
-  // but with 1000 Ansem mint we expect MathOverflow first on current program.
+  // Fake user — simulation only (no funded ATAs). Separates account errors from math.
   const user = Keypair.generate().publicKey;
   const userAnsem = getAssociatedTokenAddressSync(ANSEM_MINT, user);
   const userBullet = getAssociatedTokenAddressSync(
@@ -45,7 +46,7 @@ async function main() {
   );
   const feeAta = getAssociatedTokenAddressSync(ANSEM_MINT, FEE_RECIPIENT);
 
-  const amount = 1_000_000_000n; // 1000 Ansem — overflows u64 mul on live supply
+  const amount = 1_000_000_000n; // 1000 Ansem — product overflows u64; u128 path should not
   const data = Buffer.alloc(16);
   MINT_DISC.copy(data, 0);
   data.writeBigUInt64LE(amount, 8);
@@ -83,9 +84,9 @@ async function main() {
 
   const joined = (sim.value.logs ?? []).join("\n");
   if (joined.includes("MathOverflow") || joined.includes("6011")) {
-    console.log("\nCONFIRMED: simulation hits MathOverflow (6011) with correct Token-2022 accounts.");
+    console.log("\nDeployed program still hits MathOverflow (6011) — u128 fix not live yet.");
   } else {
-    console.log("\nDid not see MathOverflow — earlier account/token failure may have won.");
+    console.log("\nNo MathOverflow — either u128 fix is live, or an earlier account/token check failed.");
   }
 }
 

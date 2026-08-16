@@ -1,8 +1,11 @@
 /**
- * Fetch live Bullet protocol state from devnet and check whether mint/burn
- * curve math overflows u64 (as on-chain math.rs currently does with checked_mul).
+ * Fetch live Bullet protocol state from devnet and report whether mint/burn
+ * curve products (s*supply, t*backing) would overflow u64 before divide.
+ * On-chain math.rs uses u128 intermediates; this script remains useful to
+ * validate live magnitudes and the post-fix bigint path.
  *
- * Usage: npx tsx scripts/check-math-overflow.ts
+ * Usage: npm run check:math-overflow
+ *    or: npx tsx scripts/check-math-overflow.ts
  */
 import { Connection, PublicKey } from "@solana/web3.js";
 import deployed from "../deployed-devnet.json";
@@ -103,7 +106,7 @@ async function main() {
   ];
 
   console.log("\n=== Mint path: ansem_to_bullet_gross = s * supply / (backing_after - s) ===");
-  console.log("On-chain uses u64 checked_mul(s, supply) BEFORE divide.");
+  console.log("Pre-fix bug: u64 checked_mul(s, supply) before divide. Fixed path uses u128.");
 
   let mintOverflows = false;
   for (const s of mintSamples) {
@@ -158,7 +161,7 @@ async function main() {
   console.log(`burn path overflows u64 for typical amounts: ${burnOverflows}`);
   console.log(`floor_scaled overflows u64: ${floorMul.overflows}`);
   if (mintOverflows || burnOverflows) {
-    console.log("ROOT CAUSE CONFIRMED: use u128 intermediates in math.rs (like interest_fee).");
+    console.log("NOTE: products exceed u64; on-chain must use u128 intermediates (math.rs does).");
   }
 
   // Post-fix check: same formulas with bigint (u128) succeed.

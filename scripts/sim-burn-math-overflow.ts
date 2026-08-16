@@ -1,7 +1,7 @@
 /**
- * Simulate burn_bullet on live deployed program with correct Token-2022 accounts.
- * Burn computes bullet_to_ansem_gross BEFORE the burn CPI, so MathOverflow surfaces
- * even without a funded user ATA (account validation may still fail first for missing ATA).
+ * Simulate burn_bullet on the live deployed program with correct Token-2022 accounts,
+ * plus a missing-Token-2022 control case to separate account errors from math overflow.
+ * After the u128 math upgrade is deployed, the correct-accounts path should not return 6011.
  *
  * Usage: npx tsx scripts/sim-burn-math-overflow.ts
  */
@@ -42,7 +42,7 @@ async function main() {
   );
   const feeAta = getAssociatedTokenAddressSync(ANSEM_MINT, FEE_RECIPIENT);
 
-  const amount = 1_000_000_000n; // 1000 BULLET — t*backing overflows u64
+  const amount = 1_000_000_000n; // 1000 BULLET — t*backing overflows u64; u128 path should not
   const data = Buffer.alloc(16);
   BURN_DISC.copy(data, 0);
   data.writeBigUInt64LE(amount, 8);
