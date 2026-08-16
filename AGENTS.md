@@ -25,9 +25,10 @@ The committed `Cargo.lock` pins `edition2024` crates (e.g. `zeroize_derive 1.5.0
 
 ### BULLET Token-2022 + transfer hook (DEX-only)
 
-- BULLET is a **Token-2022** mint with **`TransferFeeConfig`** (default **800 bps / 8%**, adjustable via fee authority) and a **`TransferHook`** pointing at `bullet-transfer-hook`.
+- BULLET is a **Token-2022** mint with **`TransferFeeConfig`** (ceiling **800 bps / 8%**) and a **`TransferHook`** pointing at `bullet-transfer-hook`.
 - The hook **allows transfers only when source or destination is a registered DEX pool** (or an exempt protocol account). Wallet-to-wallet transfers are **blocked** unless exempt.
-- `TransferFeeConfig` cannot distinguish buy/sell vs P2P on its own — the hook provides the DEX gate; the fee applies on transfers that pass the gate.
+- **Effective DEX tax is size vs LP (4–8%)**, not lifetime volume: `target_bps = lerp(400, 800, min(1, amount/lp / 10%))`. Mint always withholds 8%; `settle_dex_tax_refund` refunds the overpay. Enable with `npx tsx scripts/enable-size-lp-dex-tax.ts` (fee vault + withhold authority PDA).
+- Single pending-refund slot on hook config — settle before the next DEX transfer that needs a refund (router should append settle, or run a crank).
 - Protocol paths use **mint/burn** (not `transfer`) so mint/burn/borrow/leverage are not taxed.
 - Mint has **no freeze authority** (`None`) for Meteora DLMM permissionless compatibility.
 - Live **devnet** ids are in `deployed-devnet.json` (current: bullet `Gz7TX19…`, hook `GJdqUFK…`). Committed `declare_id!` / `Anchor.toml` track those after redeploy.

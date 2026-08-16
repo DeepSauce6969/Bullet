@@ -18,7 +18,15 @@ pub fn handler(ctx: Context<Initialize>, max_supply: u64, fee_recipient: Pubkey)
         mint_bump,
         protocol_bump,
         ctx.accounts.transfer_hook_program.key,
-        ctx.accounts.authority.key,
+        ctx.accounts.authority.key, // transfer fee config authority
+        &Pubkey::find_program_address(
+            &[
+                bullet_transfer_hook::state::WITHDRAW_AUTH_SEED,
+                ctx.accounts.bullet_mint.key().as_ref(),
+            ],
+            &TRANSFER_HOOK_PROGRAM_ID,
+        )
+        .0, // withdraw-withheld authority = hook PDA (size/LP settle)
         DEFAULT_DEX_TRANSFER_TAX_BPS,
         &ctx.accounts.system_program.to_account_info(),
         &ctx.accounts.token_2022_program.to_account_info(),

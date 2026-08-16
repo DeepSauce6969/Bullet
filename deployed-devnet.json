@@ -47,5 +47,10 @@
   },
   "hookConfig": "CwZ7aBovSvyENtYQ36GKg3JqimKBL4YuqoKjynMRYMug",
   "extraAccountMetaList": "3VoRViQkwdLgHVKYjtuk9jofy9kyQxeFmpxUVksQivWZ",
-  "dexTransferTaxBps": 800
+  "dexTransferTaxBps": 800,
+  "dexTaxModel": "size_vs_lp",
+  "dexTaxMinBps": 400,
+  "dexTaxRMaxBps": 1000,
+  "withdrawAuth": "FbWfVBwzAftkKduWY1UfiJZnK8y99te773yg5vchRBh8",
+  "dexFeeVault": "94EWULV3uyYei3tk18WdYuGHKdAH44r22fAY4DPVDkhE"
 }

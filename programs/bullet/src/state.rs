@@ -33,11 +33,13 @@ pub const DEFAULT_MAX_SUPPLY: u64 = 5_000_000 * 1_000_000;
 /// Sourced from `bullet_transfer_hook::ID` so localnet `anchor keys sync` stays consistent.
 pub const TRANSFER_HOOK_PROGRAM_ID: Pubkey = bullet_transfer_hook::ID;
 
-/// Default DEX transfer tax at launch (8%). Live rate is volume-dynamic in 4–8%
-/// via the transfer-hook + mint `SetTransferFee` (see `bullet-transfer-hook`).
+/// Default DEX transfer tax at launch (8% ceiling). Live *effective* rate is
+/// per-trade size vs pool LP in 4–8% via the transfer-hook refund settle path.
 pub const DEFAULT_DEX_TRANSFER_TAX_BPS: u16 = 800;
 pub const DEX_TAX_MIN_BPS: u16 = 400; // 4%
 pub const DEX_TAX_MAX_BPS: u16 = 800; // 8%
+/// Trade size as % of LP that hits max tax (10%).
+pub const DEX_TAX_R_MAX_BPS: u64 = 1_000;
 
 #[account]
 #[derive(InitSpace)]

@@ -22,4 +22,6 @@ pub enum HookError {
     MathOverflow,
     #[msg("Config layout already migrated")]
     AlreadyMigrated,
+    #[msg("No pending DEX tax refund for this account")]
+    NoPendingRefund,
 }

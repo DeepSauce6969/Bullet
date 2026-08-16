@@ -35,7 +35,7 @@ Floor   = Backing / total_supply   (never decreases)
 - **Burn**: redeem pro-rata Ansem at 96%; same fee split.
 - **Borrow**: lock BULLET, borrow ≤ 99% LTV in Ansem; interest = 7.8% APY × days/365 + 0.2% base, paid upfront.
 - **Leverage**: 2% bake + interest on borrow leg + 2% over-collateral; mints leveraged BULLET into collateral vault.
-- **DEX trading**: Token-2022 transfer tax **4–8%**, dynamic by lifetime DEX volume (starts at 8%, steps down as volume grows); wallet-to-wallet transfers blocked.
+- **DEX trading**: Token-2022 transfer tax **4–8% by trade size vs pool LP** (small buys ≈4%, whales up to 8%; larger LP ⇒ larger size needed for max tax). Wallet-to-wallet transfers blocked.
 - **Genesis pre-deposit**: tier fees 0% / 2.5% / 3.5% (VIP / Community / Public); **100% of tier fee → POL** on finalize.
 - **Liquidate**: after expiry, burn collateral; borrowed Ansem stays in backing math → floor rises for holders.
 

@@ -219,7 +219,7 @@ Floor   = Backing / total_supply`}
             {
               term: "DEX transfer tax",
               definition:
-                "4–8% on registered pool swaps, stepped down by lifetime DEX volume.",
+                "4–8% by trade size vs pool LP (small ≈4%, whale up to 8%; larger LP needs larger size for max).",
             },
             {
               term: "Genesis vault fees",
