@@ -1,15 +1,14 @@
 /**
- * Devnet init: create mock Ansem mint + initialize Bullet protocol.
- * Usage: npx ts-node --esm scripts/init-devnet.ts
- *    or: npx tsx scripts/init-devnet.ts
+ * Devnet init: create mock Ansem mint + initialize Bullet protocol (Token-2022 BULLET).
+ * Usage: npx tsx scripts/init-devnet.ts
  */
-import * as anchor from "@coral-xyz/anchor";
 import {
   createMint,
   createAssociatedTokenAccount,
   getAssociatedTokenAddressSync,
   mintTo,
   TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import {
@@ -25,8 +24,13 @@ import {
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import * as crypto from "crypto";
 
+// Patched by redeploy-devnet.sh after keys sync
 const PROGRAM_ID = new PublicKey("Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3");
+const TRANSFER_HOOK_PROGRAM_ID = new PublicKey(
+  "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
+);
 const RPC = "https://api.devnet.solana.com";
 const MAX_SUPPLY = BigInt(5_000_000) * BigInt(1_000_000); // 5_000_000 * 1e6
 
@@ -36,9 +40,7 @@ function loadKeypair(p: string): Keypair {
 }
 
 function sighash(name: string): Buffer {
-  const preimage = `global:${name}`;
-  const crypto = require("crypto") as typeof import("crypto");
-  return crypto.createHash("sha256").update(preimage).digest().subarray(0, 8);
+  return crypto.createHash("sha256").update(`global:${name}`).digest().subarray(0, 8);
 }
 
 async function main() {
@@ -48,12 +50,10 @@ async function main() {
   console.log("Payer:", payer.publicKey.toBase58());
   console.log("Balance:", (await connection.getBalance(payer.publicKey)) / 1e9, "SOL");
 
-  // 1) Mock Ansem mint (mainnet Ansem can't exist on devnet)
   console.log("Creating mock Ansem mint...");
   const ansemMint = await createMint(connection, payer, payer.publicKey, null, 6);
   console.log("Mock Ansem mint:", ansemMint.toBase58());
 
-  // Fee recipient = payer for simplicity
   const feeRecipient = payer.publicKey;
   const feeAta = await createAssociatedTokenAccount(
     connection,
@@ -63,7 +63,6 @@ async function main() {
   );
   console.log("Fee ATA:", feeAta.toBase58());
 
-  // PDAs
   const [protocol] = PublicKey.findProgramAddressSync(
     [Buffer.from("protocol")],
     PROGRAM_ID
@@ -101,15 +100,17 @@ async function main() {
       { pubkey: vault, isSigner: false, isWritable: true },
       { pubkey: polVault, isSigner: false, isWritable: true },
       { pubkey: collateralVault, isSigner: false, isWritable: true },
+      { pubkey: TRANSFER_HOOK_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
     ],
     data,
   });
 
-  console.log("Sending initialize...");
+  console.log("Sending initialize (Token-2022 BULLET + transfer hook)...");
   const sig = await sendAndConfirmTransaction(
     connection,
     new Transaction().add(ix),
@@ -118,9 +119,7 @@ async function main() {
   );
   console.log("Initialize sig:", sig);
 
-  // Fund payer with mock Ansem for testing
   const userAnsem = getAssociatedTokenAddressSync(ansemMint, payer.publicKey);
-  // fee ATA already created for payer; reuse as user ATA if same
   const userAta =
     userAnsem.toBase58() === feeAta.toBase58()
       ? feeAta
@@ -128,11 +127,16 @@ async function main() {
   await mintTo(connection, payer, ansemMint, userAta, payer, BigInt(1_000_000_000_000));
   console.log("Minted 1_000_000 mock Ansem to", userAta.toBase58());
 
+  const mintInfo = await connection.getAccountInfo(bulletMint);
+  console.log("BULLET mint owner:", mintInfo?.owner.toBase58());
+  console.log("BULLET mint space:", mintInfo?.data.length);
+
   const out = {
     cluster: "devnet",
     programId: PROGRAM_ID.toBase58(),
+    transferHookProgramId: TRANSFER_HOOK_PROGRAM_ID.toBase58(),
     ansemMint: ansemMint.toBase58(),
-    note: "Devnet mock Ansem — mainnet uses 9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+    note: "Devnet mock Ansem — mainnet uses 9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump. BULLET is Token-2022 with DEX transfer hook.",
     protocol: protocol.toBase58(),
     bulletMint: bulletMint.toBase58(),
     vault: vault.toBase58(),

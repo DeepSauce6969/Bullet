@@ -9,6 +9,7 @@
  */
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountIdempotentInstruction,
   getAccount,
@@ -129,7 +130,12 @@ async function main() {
   if (!user) throw new Error("No funded LEVERAGE_USER found");
 
   const userAnsem = getAssociatedTokenAddressSync(ansemMint, user);
-  const userBullet = getAssociatedTokenAddressSync(bulletMint, user);
+  const userBullet = getAssociatedTokenAddressSync(
+    bulletMint,
+    user,
+    false,
+    TOKEN_2022_PROGRAM_ID
+  );
   const userBal = await getAccount(connection, userAnsem);
   const loan = loanPda(programId, protocol, user, loanCount);
 
@@ -143,7 +149,8 @@ async function main() {
       user,
       userBullet,
       user,
-      bulletMint
+      bulletMint,
+      TOKEN_2022_PROGRAM_ID
     ),
     new TransactionInstruction({
       programId,
@@ -161,6 +168,7 @@ async function main() {
         { pubkey: userBullet, isSigner: false, isWritable: true },
         { pubkey: loan, isSigner: false, isWritable: true },
         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         {
           pubkey: ASSOCIATED_TOKEN_PROGRAM_ID,
           isSigner: false,

@@ -7,8 +7,10 @@ use crate::ix_accounts::{
 };
 use crate::math;
 use crate::state::*;
+use crate::token2022_mint;
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, MintTo, Transfer};
+use anchor_spl::token::{self, Transfer};
+use anchor_spl::token_interface::{self, Burn, MintTo};
 
 pub fn init_genesis_vault(
     ctx: Context<InitGenesisVault>,
@@ -21,6 +23,20 @@ pub fn init_genesis_vault(
     require!(fee_bps <= 10_000, BulletError::MathOverflow);
     require!(deposit_cap > 0, BulletError::ZeroAmount);
     require!(max_allocation > 0, BulletError::ZeroAmount);
+
+    let bullet_vault_bump = ctx.bumps.bullet_vault;
+    let tier_seed = [tier];
+    let bullet_vault_seeds: &[&[u8]] = &[GenesisVault::BULLET_SEED, &tier_seed, &[bullet_vault_bump]];
+
+    token2022_mint::create_bullet_token_account(
+        &ctx.accounts.authority.to_account_info(),
+        &ctx.accounts.bullet_vault.to_account_info(),
+        &ctx.accounts.bullet_mint.to_account_info(),
+        &ctx.accounts.genesis_vault.key(),
+        bullet_vault_seeds,
+        &ctx.accounts.system_program.to_account_info(),
+        &ctx.accounts.bullet_token_program.to_account_info(),
+    )?;
 
     let vault = &mut ctx.accounts.genesis_vault;
     vault.protocol = ctx.accounts.protocol.key();
@@ -132,7 +148,7 @@ pub fn withdraw(ctx: Context<WithdrawGenesis>) -> Result<()> {
     Ok(())
 }
 
-/// Move net ANSEM into protocol vault, mint BULLET into genesis bullet vault (no 2.5% out-fee).
+/// Move net ANSEM into protocol vault, mint BULLET into genesis bullet vault (no 5% out-fee).
 pub fn finalize(ctx: Context<FinalizeGenesis>) -> Result<()> {
     let raised = ctx.accounts.genesis_vault.total_raised;
     require!(raised > 0, BulletError::ZeroAmount);
@@ -157,14 +173,14 @@ pub fn finalize(ctx: Context<FinalizeGenesis>) -> Result<()> {
     let gv_bump = ctx.accounts.genesis_vault.bump;
     let gv_seeds: &[&[u8]] = &[GenesisVault::SEED, &[tier], &[gv_bump]];
 
-    // Tier fee → fee recipient
+    // Tier fee → POL vault (100% of presale fee)
     if fee > 0 {
         token::transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
                 Transfer {
                     from: ctx.accounts.token_vault.to_account_info(),
-                    to: ctx.accounts.fee_recipient_ata.to_account_info(),
+                    to: ctx.accounts.pol_vault.to_account_info(),
                     authority: ctx.accounts.genesis_vault.to_account_info(),
                 },
                 &[gv_seeds],
@@ -193,7 +209,7 @@ pub fn finalize(ctx: Context<FinalizeGenesis>) -> Result<()> {
         .checked_add(net)
         .ok_or(BulletError::MathOverflow)?;
     let backing_for_curve = math::backing(vault_after_in, protocol_total_borrowed)?;
-    // Presale mint: no 2.5% out-fee (tier fee already taken)
+    // Presale mint: no 5% out-fee (tier fee already taken)
     let bullet_out =
         math::ansem_to_bullet_gross(net, protocol_total_supply, backing_for_curve)?;
 
@@ -219,9 +235,9 @@ pub fn finalize(ctx: Context<FinalizeGenesis>) -> Result<()> {
     math::assert_floor_non_decreasing(floor_before, floor_after)?;
 
     let protocol_seeds: &[&[u8]] = &[Protocol::SEED, &[protocol_bump]];
-    token::mint_to(
+    token_interface::mint_to(
         CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.bullet_token_program.to_account_info(),
             MintTo {
                 mint: ctx.accounts.bullet_mint.to_account_info(),
                 to: ctx.accounts.bullet_vault.to_account_info(),
@@ -267,15 +283,27 @@ pub fn claim(ctx: Context<ClaimGenesis>) -> Result<()> {
     let bump = ctx.accounts.genesis_vault.bump;
     let seeds: &[&[u8]] = &[GenesisVault::SEED, &[tier], &[bump]];
 
-    token::transfer(
+    token_interface::burn(
         CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
+            ctx.accounts.bullet_token_program.to_account_info(),
+            Burn {
+                mint: ctx.accounts.bullet_mint.to_account_info(),
                 from: ctx.accounts.bullet_vault.to_account_info(),
-                to: ctx.accounts.user_bullet.to_account_info(),
                 authority: ctx.accounts.genesis_vault.to_account_info(),
             },
             &[seeds],
+        ),
+        bullet_out,
+    )?;
+    token_interface::mint_to(
+        CpiContext::new_with_signer(
+            ctx.accounts.bullet_token_program.to_account_info(),
+            MintTo {
+                mint: ctx.accounts.bullet_mint.to_account_info(),
+                to: ctx.accounts.user_bullet.to_account_info(),
+                authority: ctx.accounts.protocol.to_account_info(),
+            },
+            &[&[Protocol::SEED, &[ctx.accounts.protocol.bump]]],
         ),
         bullet_out,
     )?;

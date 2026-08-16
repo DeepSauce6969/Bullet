@@ -2,7 +2,9 @@ use crate::errors::BulletError;
 use crate::state::*;
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token::{Mint, Token, TokenAccount};
+use anchor_spl::token::{Mint as MintClassic, Token, TokenAccount as TokenAccountClassic};
+use anchor_spl::token_2022::Token2022;
+use anchor_spl::token_interface::{Mint as MintInterface, TokenAccount as TokenAccountInterface};
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -18,20 +20,16 @@ pub struct Initialize<'info> {
     )]
     pub protocol: Box<Account<'info, Protocol>>,
 
-    /// BULLET mint — authority = protocol PDA.
+    /// CHECK: Token-2022 BULLET mint PDA — created in handler.
     #[account(
-        init,
-        payer = authority,
+        mut,
         seeds = [Protocol::MINT_SEED],
         bump,
-        mint::decimals = BULLET_DECIMALS,
-        mint::authority = protocol,
-        mint::freeze_authority = protocol,
     )]
-    pub bullet_mint: Box<Account<'info, Mint>>,
+    pub bullet_mint: UncheckedAccount<'info>,
 
     /// Backing mint (mainnet: Ansem `9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump`).
-    pub ansem_mint: Box<Account<'info, Mint>>,
+    pub ansem_mint: Box<Account<'info, MintClassic>>,
 
     #[account(
         init,
@@ -41,7 +39,7 @@ pub struct Initialize<'info> {
         token::mint = ansem_mint,
         token::authority = protocol,
     )]
-    pub vault: Box<Account<'info, TokenAccount>>,
+    pub vault: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         init,
@@ -51,20 +49,25 @@ pub struct Initialize<'info> {
         token::mint = ansem_mint,
         token::authority = protocol,
     )]
-    pub pol_vault: Box<Account<'info, TokenAccount>>,
+    pub pol_vault: Box<Account<'info, TokenAccountClassic>>,
 
+    /// CHECK: BULLET collateral vault PDA — created in handler.
     #[account(
-        init,
-        payer = authority,
+        mut,
         seeds = [Protocol::COLLATERAL_SEED],
         bump,
-        token::mint = bullet_mint,
-        token::authority = protocol,
     )]
-    pub collateral_vault: Box<Account<'info, TokenAccount>>,
+    pub collateral_vault: UncheckedAccount<'info>,
+
+    /// CHECK: transfer hook program id.
+    #[account(
+        constraint = transfer_hook_program.key() == TRANSFER_HOOK_PROGRAM_ID @ BulletError::InvalidTransferHook
+    )]
+    pub transfer_hook_program: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
+    pub token_2022_program: Program<'info, Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub rent: Sysvar<'info, Rent>,
 }
@@ -85,17 +88,17 @@ pub struct MintBullet<'info> {
     )]
     pub protocol: Box<Account<'info, Protocol>>,
 
-    #[account(mut, address = protocol.bullet_mint)]
-    pub bullet_mint: Box<Account<'info, Mint>>,
+    #[account(mut, address = protocol.bullet_mint, mint::token_program = bullet_token_program)]
+    pub bullet_mint: InterfaceAccount<'info, MintInterface>,
 
     #[account(address = protocol.ansem_mint)]
-    pub ansem_mint: Box<Account<'info, Mint>>,
+    pub ansem_mint: Box<Account<'info, MintClassic>>,
 
     #[account(mut, address = protocol.vault)]
-    pub vault: Box<Account<'info, TokenAccount>>,
+    pub vault: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(mut, address = protocol.pol_vault)]
-    pub pol_vault: Box<Account<'info, TokenAccount>>,
+    pub pol_vault: Box<Account<'info, TokenAccountClassic>>,
 
     /// CHECK: fee recipient wallet — ATA validated below.
     #[account(address = protocol.fee_recipient)]
@@ -106,24 +109,26 @@ pub struct MintBullet<'info> {
         associated_token::mint = ansem_mint,
         associated_token::authority = fee_recipient,
     )]
-    pub fee_recipient_ata: Box<Account<'info, TokenAccount>>,
+    pub fee_recipient_ata: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         mut,
         associated_token::mint = ansem_mint,
         associated_token::authority = user,
     )]
-    pub user_ansem: Box<Account<'info, TokenAccount>>,
+    pub user_ansem: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         init_if_needed,
         payer = user,
         associated_token::mint = bullet_mint,
         associated_token::authority = user,
+        associated_token::token_program = bullet_token_program,
     )]
-    pub user_bullet: Box<Account<'info, TokenAccount>>,
+    pub user_bullet: InterfaceAccount<'info, TokenAccountInterface>,
 
     pub token_program: Program<'info, Token>,
+    pub bullet_token_program: Program<'info, Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
 }
@@ -144,17 +149,17 @@ pub struct BurnBullet<'info> {
     )]
     pub protocol: Box<Account<'info, Protocol>>,
 
-    #[account(mut, address = protocol.bullet_mint)]
-    pub bullet_mint: Box<Account<'info, Mint>>,
+    #[account(mut, address = protocol.bullet_mint, mint::token_program = bullet_token_program)]
+    pub bullet_mint: InterfaceAccount<'info, MintInterface>,
 
     #[account(address = protocol.ansem_mint)]
-    pub ansem_mint: Box<Account<'info, Mint>>,
+    pub ansem_mint: Box<Account<'info, MintClassic>>,
 
     #[account(mut, address = protocol.vault)]
-    pub vault: Box<Account<'info, TokenAccount>>,
+    pub vault: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(mut, address = protocol.pol_vault)]
-    pub pol_vault: Box<Account<'info, TokenAccount>>,
+    pub pol_vault: Box<Account<'info, TokenAccountClassic>>,
 
     /// CHECK: bribe wallet.
     #[account(address = protocol.fee_recipient)]
@@ -165,23 +170,25 @@ pub struct BurnBullet<'info> {
         associated_token::mint = ansem_mint,
         associated_token::authority = fee_recipient,
     )]
-    pub fee_recipient_ata: Box<Account<'info, TokenAccount>>,
+    pub fee_recipient_ata: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         mut,
         associated_token::mint = bullet_mint,
         associated_token::authority = user,
+        associated_token::token_program = bullet_token_program,
     )]
-    pub user_bullet: Box<Account<'info, TokenAccount>>,
+    pub user_bullet: InterfaceAccount<'info, TokenAccountInterface>,
 
     #[account(
         mut,
         associated_token::mint = ansem_mint,
         associated_token::authority = user,
     )]
-    pub user_ansem: Box<Account<'info, TokenAccount>>,
+    pub user_ansem: Box<Account<'info, TokenAccountClassic>>,
 
     pub token_program: Program<'info, Token>,
+    pub bullet_token_program: Program<'info, Token2022>,
 }
 
 #[derive(Accounts)]
@@ -201,20 +208,24 @@ pub struct Borrow<'info> {
     )]
     pub protocol: Box<Account<'info, Protocol>>,
 
-    #[account(mut, address = protocol.bullet_mint)]
-    pub bullet_mint: Box<Account<'info, Mint>>,
+    #[account(mut, address = protocol.bullet_mint, mint::token_program = bullet_token_program)]
+    pub bullet_mint: Box<InterfaceAccount<'info, MintInterface>>,
 
     #[account(address = protocol.ansem_mint)]
-    pub ansem_mint: Box<Account<'info, Mint>>,
+    pub ansem_mint: Box<Account<'info, MintClassic>>,
 
     #[account(mut, address = protocol.vault)]
-    pub vault: Box<Account<'info, TokenAccount>>,
+    pub vault: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(mut, address = protocol.pol_vault)]
-    pub pol_vault: Box<Account<'info, TokenAccount>>,
+    pub pol_vault: Box<Account<'info, TokenAccountClassic>>,
 
-    #[account(mut, address = protocol.collateral_vault)]
-    pub collateral_vault: Box<Account<'info, TokenAccount>>,
+    #[account(
+        mut,
+        address = protocol.collateral_vault,
+        token::token_program = bullet_token_program,
+    )]
+    pub collateral_vault: Box<InterfaceAccount<'info, TokenAccountInterface>>,
 
     /// CHECK: bribe wallet.
     #[account(address = protocol.fee_recipient)]
@@ -225,21 +236,22 @@ pub struct Borrow<'info> {
         associated_token::mint = ansem_mint,
         associated_token::authority = fee_recipient,
     )]
-    pub fee_recipient_ata: Box<Account<'info, TokenAccount>>,
+    pub fee_recipient_ata: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         mut,
         associated_token::mint = bullet_mint,
         associated_token::authority = user,
+        associated_token::token_program = bullet_token_program,
     )]
-    pub user_bullet: Box<Account<'info, TokenAccount>>,
+    pub user_bullet: Box<InterfaceAccount<'info, TokenAccountInterface>>,
 
     #[account(
         mut,
         associated_token::mint = ansem_mint,
         associated_token::authority = user,
     )]
-    pub user_ansem: Box<Account<'info, TokenAccount>>,
+    pub user_ansem: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         init,
@@ -256,6 +268,7 @@ pub struct Borrow<'info> {
     pub loan: Box<Account<'info, Loan>>,
 
     pub token_program: Program<'info, Token>,
+    pub bullet_token_program: Program<'info, Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
 }
@@ -275,31 +288,36 @@ pub struct Repay<'info> {
     )]
     pub protocol: Box<Account<'info, Protocol>>,
 
-    #[account(address = protocol.bullet_mint)]
-    pub bullet_mint: Box<Account<'info, Mint>>,
+    #[account(mut, address = protocol.bullet_mint, mint::token_program = bullet_token_program)]
+    pub bullet_mint: InterfaceAccount<'info, MintInterface>,
 
     #[account(address = protocol.ansem_mint)]
-    pub ansem_mint: Box<Account<'info, Mint>>,
+    pub ansem_mint: Box<Account<'info, MintClassic>>,
 
     #[account(mut, address = protocol.vault)]
-    pub vault: Box<Account<'info, TokenAccount>>,
+    pub vault: Box<Account<'info, TokenAccountClassic>>,
 
-    #[account(mut, address = protocol.collateral_vault)]
-    pub collateral_vault: Box<Account<'info, TokenAccount>>,
+    #[account(
+        mut,
+        address = protocol.collateral_vault,
+        token::token_program = bullet_token_program,
+    )]
+    pub collateral_vault: InterfaceAccount<'info, TokenAccountInterface>,
 
     #[account(
         mut,
         associated_token::mint = ansem_mint,
         associated_token::authority = user,
     )]
-    pub user_ansem: Box<Account<'info, TokenAccount>>,
+    pub user_ansem: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         mut,
         associated_token::mint = bullet_mint,
         associated_token::authority = user,
+        associated_token::token_program = bullet_token_program,
     )]
-    pub user_bullet: Box<Account<'info, TokenAccount>>,
+    pub user_bullet: InterfaceAccount<'info, TokenAccountInterface>,
 
     #[account(
         mut,
@@ -311,6 +329,7 @@ pub struct Repay<'info> {
     pub loan: Box<Account<'info, Loan>>,
 
     pub token_program: Program<'info, Token>,
+    pub bullet_token_program: Program<'info, Token2022>,
 }
 
 #[derive(Accounts)]
@@ -330,20 +349,24 @@ pub struct Leverage<'info> {
     )]
     pub protocol: Box<Account<'info, Protocol>>,
 
-    #[account(mut, address = protocol.bullet_mint)]
-    pub bullet_mint: Box<Account<'info, Mint>>,
+    #[account(mut, address = protocol.bullet_mint, mint::token_program = bullet_token_program)]
+    pub bullet_mint: Box<InterfaceAccount<'info, MintInterface>>,
 
     #[account(address = protocol.ansem_mint)]
-    pub ansem_mint: Box<Account<'info, Mint>>,
+    pub ansem_mint: Box<Account<'info, MintClassic>>,
 
     #[account(mut, address = protocol.vault)]
-    pub vault: Box<Account<'info, TokenAccount>>,
+    pub vault: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(mut, address = protocol.pol_vault)]
-    pub pol_vault: Box<Account<'info, TokenAccount>>,
+    pub pol_vault: Box<Account<'info, TokenAccountClassic>>,
 
-    #[account(mut, address = protocol.collateral_vault)]
-    pub collateral_vault: Box<Account<'info, TokenAccount>>,
+    #[account(
+        mut,
+        address = protocol.collateral_vault,
+        token::token_program = bullet_token_program,
+    )]
+    pub collateral_vault: Box<InterfaceAccount<'info, TokenAccountInterface>>,
 
     /// CHECK: bribe wallet.
     #[account(address = protocol.fee_recipient)]
@@ -354,22 +377,23 @@ pub struct Leverage<'info> {
         associated_token::mint = ansem_mint,
         associated_token::authority = fee_recipient,
     )]
-    pub fee_recipient_ata: Box<Account<'info, TokenAccount>>,
+    pub fee_recipient_ata: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         mut,
         associated_token::mint = ansem_mint,
         associated_token::authority = user,
     )]
-    pub user_ansem: Box<Account<'info, TokenAccount>>,
+    pub user_ansem: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         init_if_needed,
         payer = user,
         associated_token::mint = bullet_mint,
         associated_token::authority = user,
+        associated_token::token_program = bullet_token_program,
     )]
-    pub user_bullet: Box<Account<'info, TokenAccount>>,
+    pub user_bullet: Box<InterfaceAccount<'info, TokenAccountInterface>>,
 
     #[account(
         init,
@@ -386,6 +410,7 @@ pub struct Leverage<'info> {
     pub loan: Box<Account<'info, Loan>>,
 
     pub token_program: Program<'info, Token>,
+    pub bullet_token_program: Program<'info, Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
 }
@@ -405,14 +430,18 @@ pub struct Liquidate<'info> {
     )]
     pub protocol: Box<Account<'info, Protocol>>,
 
-    #[account(mut, address = protocol.bullet_mint)]
-    pub bullet_mint: Box<Account<'info, Mint>>,
+    #[account(mut, address = protocol.bullet_mint, mint::token_program = bullet_token_program)]
+    pub bullet_mint: InterfaceAccount<'info, MintInterface>,
 
     #[account(mut, address = protocol.vault)]
-    pub vault: Box<Account<'info, TokenAccount>>,
+    pub vault: Box<Account<'info, TokenAccountClassic>>,
 
-    #[account(mut, address = protocol.collateral_vault)]
-    pub collateral_vault: Box<Account<'info, TokenAccount>>,
+    #[account(
+        mut,
+        address = protocol.collateral_vault,
+        token::token_program = bullet_token_program,
+    )]
+    pub collateral_vault: InterfaceAccount<'info, TokenAccountInterface>,
 
     #[account(
         mut,
@@ -422,7 +451,7 @@ pub struct Liquidate<'info> {
     )]
     pub loan: Box<Account<'info, Loan>>,
 
-    pub token_program: Program<'info, Token>,
+    pub bullet_token_program: Program<'info, Token2022>,
 }
 
 #[derive(Accounts)]
@@ -467,10 +496,13 @@ pub struct InitGenesisVault<'info> {
     pub protocol: Box<Account<'info, Protocol>>,
 
     #[account(address = protocol.ansem_mint)]
-    pub ansem_mint: Box<Account<'info, Mint>>,
+    pub ansem_mint: Box<Account<'info, MintClassic>>,
 
-    #[account(address = protocol.bullet_mint)]
-    pub bullet_mint: Box<Account<'info, Mint>>,
+    #[account(
+        address = protocol.bullet_mint,
+        mint::token_program = bullet_token_program,
+    )]
+    pub bullet_mint: InterfaceAccount<'info, MintInterface>,
 
     #[account(
         init,
@@ -489,20 +521,19 @@ pub struct InitGenesisVault<'info> {
         token::mint = ansem_mint,
         token::authority = genesis_vault,
     )]
-    pub token_vault: Box<Account<'info, TokenAccount>>,
+    pub token_vault: Box<Account<'info, TokenAccountClassic>>,
 
+    /// CHECK: BULLET genesis vault PDA — created in handler with Token-2022 extensions.
     #[account(
-        init,
-        payer = authority,
+        mut,
         seeds = [GenesisVault::BULLET_SEED, &[tier]],
         bump,
-        token::mint = bullet_mint,
-        token::authority = genesis_vault,
     )]
-    pub bullet_vault: Box<Account<'info, TokenAccount>>,
+    pub bullet_vault: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
+    pub bullet_token_program: Program<'info, Token2022>,
     pub rent: Sysvar<'info, Rent>,
 }
 
@@ -524,14 +555,14 @@ pub struct DepositGenesis<'info> {
         mut,
         address = genesis_vault.token_vault,
     )]
-    pub token_vault: Box<Account<'info, TokenAccount>>,
+    pub token_vault: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         mut,
         associated_token::mint = genesis_vault.ansem_mint,
         associated_token::authority = user,
     )]
-    pub user_ansem: Box<Account<'info, TokenAccount>>,
+    pub user_ansem: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         init_if_needed,
@@ -567,14 +598,14 @@ pub struct WithdrawGenesis<'info> {
         mut,
         address = genesis_vault.token_vault,
     )]
-    pub token_vault: Box<Account<'info, TokenAccount>>,
+    pub token_vault: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         mut,
         associated_token::mint = genesis_vault.ansem_mint,
         associated_token::authority = user,
     )]
-    pub user_ansem: Box<Account<'info, TokenAccount>>,
+    pub user_ansem: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         mut,
@@ -606,29 +637,21 @@ pub struct FinalizeGenesis<'info> {
         has_one = bullet_mint,
         has_one = ansem_mint,
         has_one = vault,
-        has_one = fee_recipient,
+        has_one = pol_vault,
     )]
     pub protocol: Box<Account<'info, Protocol>>,
 
-    #[account(mut, address = protocol.bullet_mint)]
-    pub bullet_mint: Box<Account<'info, Mint>>,
+    #[account(mut, address = protocol.bullet_mint, mint::token_program = bullet_token_program)]
+    pub bullet_mint: InterfaceAccount<'info, MintInterface>,
 
     #[account(address = protocol.ansem_mint)]
-    pub ansem_mint: Box<Account<'info, Mint>>,
+    pub ansem_mint: Box<Account<'info, MintClassic>>,
 
     #[account(mut, address = protocol.vault)]
-    pub vault: Box<Account<'info, TokenAccount>>,
+    pub vault: Box<Account<'info, TokenAccountClassic>>,
 
-    /// CHECK: fee recipient wallet
-    #[account(address = protocol.fee_recipient)]
-    pub fee_recipient: UncheckedAccount<'info>,
-
-    #[account(
-        mut,
-        associated_token::mint = ansem_mint,
-        associated_token::authority = fee_recipient,
-    )]
-    pub fee_recipient_ata: Box<Account<'info, TokenAccount>>,
+    #[account(mut, address = protocol.pol_vault)]
+    pub pol_vault: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         mut,
@@ -643,15 +666,17 @@ pub struct FinalizeGenesis<'info> {
         mut,
         address = genesis_vault.token_vault,
     )]
-    pub token_vault: Box<Account<'info, TokenAccount>>,
+    pub token_vault: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         mut,
         address = genesis_vault.bullet_vault,
+        token::token_program = bullet_token_program,
     )]
-    pub bullet_vault: Box<Account<'info, TokenAccount>>,
+    pub bullet_vault: InterfaceAccount<'info, TokenAccountInterface>,
 
     pub token_program: Program<'info, Token>,
+    pub bullet_token_program: Program<'info, Token2022>,
 }
 
 #[derive(Accounts)]
@@ -670,10 +695,12 @@ pub struct ClaimGenesis<'info> {
     #[account(
         mut,
         address = genesis_vault.bullet_vault,
+        token::token_program = bullet_token_program,
     )]
-    pub bullet_vault: Box<Account<'info, TokenAccount>>,
+    pub bullet_vault: InterfaceAccount<'info, TokenAccountInterface>,
 
     #[account(
+        mut,
         seeds = [Protocol::SEED],
         bump = protocol.bump,
         constraint = protocol.key() == genesis_vault.protocol @ BulletError::Unauthorized,
@@ -681,16 +708,21 @@ pub struct ClaimGenesis<'info> {
     )]
     pub protocol: Box<Account<'info, Protocol>>,
 
-    #[account(address = protocol.bullet_mint)]
-    pub bullet_mint: Box<Account<'info, Mint>>,
+    #[account(
+        mut,
+        address = protocol.bullet_mint,
+        mint::token_program = bullet_token_program,
+    )]
+    pub bullet_mint: InterfaceAccount<'info, MintInterface>,
 
     #[account(
         init_if_needed,
         payer = user,
         associated_token::mint = bullet_mint,
         associated_token::authority = user,
+        associated_token::token_program = bullet_token_program,
     )]
-    pub user_bullet: Box<Account<'info, TokenAccount>>,
+    pub user_bullet: InterfaceAccount<'info, TokenAccountInterface>,
 
     #[account(
         mut,
@@ -707,6 +739,7 @@ pub struct ClaimGenesis<'info> {
     pub user_deposit: Box<Account<'info, UserDeposit>>,
 
     pub token_program: Program<'info, Token>,
+    pub bullet_token_program: Program<'info, Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
 }

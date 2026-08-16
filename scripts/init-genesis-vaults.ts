@@ -1,5 +1,6 @@
 /**
  * Init 3 genesis pre-deposit vaults on devnet (VIP / Community / Public).
+ * Token-2022: includes bullet_token_program in account list.
  * Usage: npx tsx scripts/init-genesis-vaults.ts
  */
 import {
@@ -12,12 +13,13 @@ import {
   TransactionInstruction,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
+// Patched by redeploy-devnet.sh after keys sync
 const PROGRAM_ID = new PublicKey("Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3");
 const RPC = "https://api.devnet.solana.com";
 
@@ -92,6 +94,7 @@ async function main() {
         { pubkey: bulletVault, isSigner: false, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
       ],
       data,
