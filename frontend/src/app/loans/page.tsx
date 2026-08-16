@@ -61,20 +61,23 @@ function formatExpiration(days: number): string {
 }
 
 const LTV = 0.99;
+/** Must match on-chain LEVERAGE_BAKE_BPS / OVERCOLLAT_BPS (200 = 2%). */
+const LEVERAGE_BAKE = 0.02;
+const LEVERAGE_OVERCOLLAT = 0.02;
 
 /** Max ANSEM notional such that leverage fees (bake + interest + over-collat) ≤ ansemBalance */
 function computeMaxLeverageFromAnsem(ansemBal: number, days: number): number {
   if (!(ansemBal > 0) || !Number.isFinite(ansemBal)) return 0;
 
-  // Coarse approx: bake 2% + over 2% of 98% + interest on ~96% ≈ ~3%+
+  // Fees are a small % of notional → max notional ≈ balance / ~few %.
   let lo = 0;
-  let hi = ansemBal / 0.015;
+  let hi = ansemBal / 0.02;
   for (let i = 0; i < 40; i++) {
     const mid = (lo + hi) / 2;
-    const bakeFee = mid * 0.01;
+    const bakeFee = mid * LEVERAGE_BAKE;
     const userAnsem = mid - bakeFee;
     const loanAmount = userAnsem * LTV;
-    const overCollat = userAnsem * 0.01;
+    const overCollat = userAnsem * LEVERAGE_OVERCOLLAT;
     const interest = Number(estimateInterest(loanAmount, days));
     const totalRequired = bakeFee + interest + overCollat;
     if (totalRequired <= ansemBal) lo = mid;
@@ -84,27 +87,12 @@ function computeMaxLeverageFromAnsem(ansemBal: number, days: number): number {
 }
 
 /**
- * Max ANSEM size for the leverage input:
- * - fee budget from ANSEM wallet (protocol requirement)
- * - optional LTV cap from BULLET wallet × floor × 99% (user sizing vs holdings)
+ * Max ANSEM size for the leverage input.
+ * Leverage mints its own collateral — do NOT cap by wallet BULLET LTV
+ * (that made MAX LOOP identical to simple borrow).
  */
-function computeMaxLoopAmount(
-  ansemBal: number,
-  bulletBal: number,
-  floorPrice: number,
-  days: number
-): number {
-  const fromFees = computeMaxLeverageFromAnsem(ansemBal, days);
-  const safeFloor = floorPrice > 0 ? floorPrice : 0;
-  const fromBulletLtv =
-    bulletBal > 0 && safeFloor > 0 ? bulletBal * safeFloor * LTV : 0;
-
-  if (fromFees > 0 && fromBulletLtv > 0) return Math.min(fromFees, fromBulletLtv);
-  if (fromFees > 0) return fromFees;
-  // If user has BULLET but no ANSEM yet, still fill a LTV-sized amount so the
-  // input updates; submit will toast if fees cannot be paid.
-  if (fromBulletLtv > 0) return fromBulletLtv;
-  return 0;
+function computeMaxLoopAmount(ansemBal: number, days: number): number {
+  return computeMaxLeverageFromAnsem(ansemBal, days);
 }
 
 function formatAmountInput(n: number): string {
@@ -152,27 +140,16 @@ export default function LoansPage() {
   }, [bulletBalance, floor]);
 
   const maxLeveragePosition = useMemo(
-    () =>
-      computeMaxLoopAmount(
-        Number(ansemBalance) || 0,
-        Number(bulletBalance) || 0,
-        floor,
-        borrowDays
-      ),
-    [ansemBalance, bulletBalance, floor, borrowDays]
+    () => computeMaxLoopAmount(Number(ansemBalance) || 0, borrowDays),
+    [ansemBalance, borrowDays]
   );
 
   const handleMaxLoop = () => {
-    const max = computeMaxLoopAmount(
-      Number(ansemBalance) || 0,
-      Number(bulletBalance) || 0,
-      floor,
-      borrowDays
-    );
+    const max = computeMaxLoopAmount(Number(ansemBalance) || 0, borrowDays);
     const next = formatAmountInput(max);
     if (!next) {
       showTxToast.error(
-        "Need ANSEM for fees and/or BULLET for LTV sizing to set MAX LOOP."
+        "Need ANSEM in your wallet to cover leverage fees for MAX LOOP."
       );
       return;
     }
@@ -229,10 +206,10 @@ export default function LoansPage() {
     }
 
     const amt = Number(amount);
-    const bakeFee = amt * 0.01;
+    const bakeFee = amt * LEVERAGE_BAKE;
     const userAnsem = amt - bakeFee;
-    const loanAmount = userAnsem * 0.99;
-    const overCollat = userAnsem * 0.01;
+    const loanAmount = userAnsem * LTV;
+    const overCollat = userAnsem * LEVERAGE_OVERCOLLAT;
     const interest = Number(estimateInterest(loanAmount, borrowDays));
     const totalRequired = bakeFee + interest + overCollat;
     const safeFloor = floor > 0 ? floor : 1;

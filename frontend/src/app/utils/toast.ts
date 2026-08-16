@@ -9,6 +9,8 @@ const REVERT_HINTS: Array<{ match: RegExp; label: string }> = [
   { match: /transfer amount exceeds balance/i, label: "Insufficient funds" },
   { match: /InsufficientLeverageFee/i, label: "Insufficient ANSEM for leverage fees" },
   { match: /FloorWouldDecrease|Floor would decrease/i, label: "Floor would decrease (protocol safety check)" },
+  { match: /MathOverflow|custom program error: 0x177b|\berror code[:\s]*6011\b|6011/i, label: "Math overflow — refresh the page; if it persists the program may need an upgrade" },
+  { match: /InsufficientBacking/i, label: "Not enough Ansem in the vault" },
   { match: /TradingDisabled|Trading is not enabled/i, label: "Trading is disabled" },
   { match: /not\s*whitelisted|invalid\s*proof|merkle|not\s*eligible/i, label: "Not whitelisted" },
   { match: /cap\s*reached|deposit\s*cap|exceeds?\s*(the\s*)?cap|allocation/i, label: "Cap reached" },

@@ -1,6 +1,5 @@
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
-  TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountIdempotentInstruction,
   getAccount,
@@ -128,16 +127,6 @@ export type ProtocolAccount = {
 
 export function getConnection(): Connection {
   return new Connection(RPC_URL, "confirmed");
-}
-
-/** BULLET is Token-2022 — ATA derivation must use TOKEN_2022_PROGRAM_ID. */
-export function bulletAta(owner: PublicKey, allowOwnerOffCurve = false): PublicKey {
-  return getAssociatedTokenAddressSync(
-    BULLET_MINT,
-    owner,
-    allowOwnerOffCurve,
-    TOKEN_2022_PROGRAM_ID
-  );
 }
 
 export function formatUnits(
@@ -271,12 +260,10 @@ export async function fetchTokenBalances(
   connection: Connection = getConnection()
 ): Promise<{ ansem: string; bullet: string }> {
   const ansemAta = getAssociatedTokenAddressSync(ANSEM_MINT, owner);
-  const userBullet = bulletAta(owner);
+  const bulletAta = getAssociatedTokenAddressSync(BULLET_MINT, owner);
   const [a, b] = await Promise.all([
     getAccount(connection, ansemAta).catch(() => null),
-    getAccount(connection, userBullet, "confirmed", TOKEN_2022_PROGRAM_ID).catch(
-      () => null
-    ),
+    getAccount(connection, bulletAta).catch(() => null),
   ]);
   return {
     ansem: formatUnits(a ? a.amount : BigInt(0), ANSEM_DECIMALS),
@@ -413,7 +400,7 @@ export async function mintBullet(
   if (!wallet.publicKey) throw new Error("Wallet not connected");
   const user = wallet.publicKey;
   const userAnsem = getAssociatedTokenAddressSync(ANSEM_MINT, user);
-  const userBullet = bulletAta(user);
+  const userBullet = getAssociatedTokenAddressSync(BULLET_MINT, user);
   const feeAta = getAssociatedTokenAddressSync(ANSEM_MINT, FEE_RECIPIENT);
 
   const data = Buffer.alloc(16);
@@ -425,8 +412,7 @@ export async function mintBullet(
       user,
       userBullet,
       user,
-      BULLET_MINT,
-      TOKEN_2022_PROGRAM_ID
+      BULLET_MINT
     ),
     new TransactionInstruction({
       programId: PROGRAM_ID,
@@ -442,7 +428,6 @@ export async function mintBullet(
         { pubkey: userAnsem, isSigner: false, isWritable: true },
         { pubkey: userBullet, isSigner: false, isWritable: true },
         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
@@ -459,7 +444,7 @@ export async function burnBullet(
   if (!wallet.publicKey) throw new Error("Wallet not connected");
   const user = wallet.publicKey;
   const userAnsem = getAssociatedTokenAddressSync(ANSEM_MINT, user);
-  const userBullet = bulletAta(user);
+  const userBullet = getAssociatedTokenAddressSync(BULLET_MINT, user);
   const feeAta = getAssociatedTokenAddressSync(ANSEM_MINT, FEE_RECIPIENT);
 
   const data = Buffer.alloc(16);
@@ -481,7 +466,6 @@ export async function burnBullet(
         { pubkey: userBullet, isSigner: false, isWritable: true },
         { pubkey: userAnsem, isSigner: false, isWritable: true },
         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
       ],
       data,
     }),
@@ -501,7 +485,7 @@ export async function borrowAnsem(
 
   const loan = loanPda(PROTOCOL_PDA, user, proto.loanCount);
   const userAnsem = getAssociatedTokenAddressSync(ANSEM_MINT, user);
-  const userBullet = bulletAta(user);
+  const userBullet = getAssociatedTokenAddressSync(BULLET_MINT, user);
   const feeAta = getAssociatedTokenAddressSync(ANSEM_MINT, FEE_RECIPIENT);
 
   const data = Buffer.alloc(18);
@@ -526,7 +510,6 @@ export async function borrowAnsem(
         { pubkey: userAnsem, isSigner: false, isWritable: true },
         { pubkey: loan, isSigner: false, isWritable: true },
         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
@@ -544,7 +527,7 @@ export async function repayLoan(
   const user = wallet.publicKey;
   const loan = new PublicKey(loanAddress);
   const userAnsem = getAssociatedTokenAddressSync(ANSEM_MINT, user);
-  const userBullet = bulletAta(user);
+  const userBullet = getAssociatedTokenAddressSync(BULLET_MINT, user);
 
   return sendIx(wallet, connection, [
     new TransactionInstruction({
@@ -552,7 +535,7 @@ export async function repayLoan(
       keys: [
         { pubkey: user, isSigner: true, isWritable: true },
         { pubkey: PROTOCOL_PDA, isSigner: false, isWritable: true },
-        { pubkey: BULLET_MINT, isSigner: false, isWritable: false },
+        { pubkey: BULLET_MINT, isSigner: false, isWritable: true },
         { pubkey: ANSEM_MINT, isSigner: false, isWritable: false },
         { pubkey: VAULT, isSigner: false, isWritable: true },
         { pubkey: COLLATERAL_VAULT, isSigner: false, isWritable: true },
@@ -560,7 +543,6 @@ export async function repayLoan(
         { pubkey: userBullet, isSigner: false, isWritable: true },
         { pubkey: loan, isSigner: false, isWritable: true },
         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
       ],
       data: disc("repay"),
     }),
@@ -587,7 +569,7 @@ export async function liquidateLoan(
         { pubkey: VAULT, isSigner: false, isWritable: true },
         { pubkey: COLLATERAL_VAULT, isSigner: false, isWritable: true },
         { pubkey: loan, isSigner: false, isWritable: true },
-        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       ],
       data: disc("liquidate"),
     }),
@@ -607,7 +589,7 @@ export async function leveragePosition(
 
   const loan = loanPda(PROTOCOL_PDA, user, proto.loanCount);
   const userAnsem = getAssociatedTokenAddressSync(ANSEM_MINT, user);
-  const userBullet = bulletAta(user);
+  const userBullet = getAssociatedTokenAddressSync(BULLET_MINT, user);
   const feeAta = getAssociatedTokenAddressSync(ANSEM_MINT, FEE_RECIPIENT);
 
   const data = Buffer.alloc(18);
@@ -620,8 +602,7 @@ export async function leveragePosition(
       user,
       userBullet,
       user,
-      BULLET_MINT,
-      TOKEN_2022_PROGRAM_ID
+      BULLET_MINT
     ),
     new TransactionInstruction({
       programId: PROGRAM_ID,
@@ -639,7 +620,6 @@ export async function leveragePosition(
         { pubkey: userBullet, isSigner: false, isWritable: true },
         { pubkey: loan, isSigner: false, isWritable: true },
         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
@@ -916,7 +896,7 @@ export async function claimGenesis(
   const user = wallet.publicKey;
   const genesisVault = genesisVaultPda(tier);
   const bulletVault = genesisBulletVaultPda(tier);
-  const userBullet = bulletAta(user);
+  const userBullet = getAssociatedTokenAddressSync(BULLET_MINT, user);
   const userDeposit = userDepositPda(genesisVault, user);
 
   return sendIx(wallet, connection, [
@@ -924,8 +904,7 @@ export async function claimGenesis(
       user,
       userBullet,
       user,
-      BULLET_MINT,
-      TOKEN_2022_PROGRAM_ID
+      BULLET_MINT
     ),
     new TransactionInstruction({
       programId: PROGRAM_ID,
@@ -938,7 +917,6 @@ export async function claimGenesis(
         { pubkey: userBullet, isSigner: false, isWritable: true },
         { pubkey: userDeposit, isSigner: false, isWritable: true },
         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         {
           pubkey: ASSOCIATED_TOKEN_PROGRAM_ID,
           isSigner: false,
