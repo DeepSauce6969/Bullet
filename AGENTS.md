@@ -25,7 +25,7 @@ The committed `Cargo.lock` pins `edition2024` crates (e.g. `zeroize_derive 1.5.0
 
 ### BULLET Token-2022 + transfer hook (DEX-only)
 
-- BULLET is a **Token-2022** mint with **`TransferFeeConfig`** (default **500 bps / 5%**, adjustable via fee authority) and a **`TransferHook`** pointing at `bullet-transfer-hook`.
+- BULLET is a **Token-2022** mint with **`TransferFeeConfig`** (default **800 bps / 8%**, adjustable via fee authority) and a **`TransferHook`** pointing at `bullet-transfer-hook`.
 - The hook **allows transfers only when source or destination is a registered DEX pool** (or an exempt protocol account). Wallet-to-wallet transfers are **blocked** unless exempt.
 - `TransferFeeConfig` cannot distinguish buy/sell vs P2P on its own — the hook provides the DEX gate; the fee applies on transfers that pass the gate.
 - Protocol paths use **mint/burn** (not `transfer`) so mint/burn/borrow/leverage are not taxed.

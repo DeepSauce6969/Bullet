@@ -8,7 +8,7 @@ use anchor_spl::token::{self, Transfer};
 use anchor_spl::token_interface::{self, MintTo};
 
 /// Leverage loop:
-/// bakeFee = 1% of A
+/// bakeFee = 2% of A
 /// userSpy = A - bakeFee
 /// userBorrow = 0.99 * userSpy
 /// overCollat = 0.01 * userSpy
@@ -101,7 +101,7 @@ pub fn handler(ctx: Context<Leverage>, ansem_amount: u64, number_of_days: u16) -
         )?;
     }
 
-    // Mint BULLET for user_spy notional at curve, apply leverage bake path (already paid 1%).
+    // Mint BULLET for user_spy notional at curve, apply leverage bake path (already paid 2%).
     // Gross mint ≈ ansem_to_bullet for user_spy after deposit of over_collat+backing parts.
     let vault_after_fees = vault_bal
         .checked_add(fees_total)

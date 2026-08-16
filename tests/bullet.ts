@@ -26,11 +26,11 @@ const ONE = 1_000_000; // 1 token (6 decimals)
 const MAX_SUPPLY = new anchor.BN(2_500 * ONE);
 
 // Mirror of on-chain constants (programs/bullet/src/state.rs).
-const PROTOCOL_FEE_BPS = 250n;
+const PROTOCOL_FEE_BPS = 500n;
 const BPS_DENOM = 10_000n;
 const FEE_POL_BPS = 1_500n;
 const FEE_BRIBE_BPS = 1_500n;
-const OUT_FEE_NUM = 975n;
+const OUT_FEE_NUM = 950n;
 const OUT_FEE_DEN = 1_000n;
 
 /** Replicates math::floor_scaled: supply==0 → 1e6, else backing*1e6/supply. */
@@ -42,12 +42,17 @@ function floorScaled(vaultBal: bigint, totalBorrowed: bigint, supply: bigint): b
 async function bal(
   connection: anchor.web3.Connection,
   ata: PublicKey,
-  tokenProgram: PublicKey = TOKEN_PROGRAM_ID
+  tokenProgram: PublicKey = TOKEN_PROGRAM_ID,
+  retries = 6
 ): Promise<bigint> {
-  const rpc = await connection.getTokenAccountBalance(ata, "confirmed").catch(() => null);
-  if (rpc) return BigInt(rpc.value.amount);
-  const acc = await getAccount(connection, ata, "confirmed", tokenProgram).catch(() => null);
-  return acc ? acc.amount : 0n;
+  for (let i = 0; i < retries; i++) {
+    const acc = await getAccount(connection, ata, "confirmed", tokenProgram).catch(() => null);
+    if (acc) return acc.amount;
+    const rpc = await connection.getTokenAccountBalance(ata, "confirmed").catch(() => null);
+    if (rpc) return BigInt(rpc.value.amount);
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  return 0n;
 }
 
 /** Assert an Anchor instruction rejects with a specific error code. */
@@ -186,7 +191,7 @@ describe("bullet protocol", () => {
       HOOK_PROGRAM_ID
     )[0];
     await hookProgram.methods
-      .initializeConfig(500)
+      .initializeConfig(800)
       .accountsPartial({
         authority: wallet.publicKey,
         mint: bulletMint,
@@ -435,11 +440,12 @@ describe("bullet protocol", () => {
     return builder.rpc();
   }
 
-  it("mints BULLET 1:1 (minus 2.5% out-fee) on the first deposit and routes fees", async () => {
+  it("mints BULLET 1:1 (minus 5% out-fee) on the first deposit and routes fees", async () => {
     const deposit = 100 * ONE;
+    userBullet = await ensureBulletAta(wallet.publicKey);
     await mint(wallet, userAnsem, userBullet, deposit);
 
-    // supply started at 0 → gross 1:1, user gets 97.5%.
+    // supply started at 0 → gross 1:1, user gets 95%.
     const expectedBullet = (BigInt(deposit) * OUT_FEE_NUM) / OUT_FEE_DEN;
     const fee = (BigInt(deposit) * PROTOCOL_FEE_BPS) / BPS_DENOM;
     const expectedPol = (fee * FEE_POL_BPS) / BPS_DENOM;
@@ -945,17 +951,17 @@ describe("bullet protocol", () => {
     }
 
     it("initializes a genesis vault tier", async () => {
-      await initTier(TIER0, 100, 1_000 * ONE, 1_000 * ONE);
+      await initTier(TIER0, 0, 1_000 * ONE, 1_000 * ONE);
       const gv = await program.account.genesisVault.fetch(genesisVaultPda(TIER0));
       assert.equal(gv.tier, TIER0);
-      assert.equal(gv.feeBps, 100);
+      assert.equal(gv.feeBps, 0);
       assert.isTrue(gv.presaleActive);
       assert.isFalse(gv.isFinalized);
       assert.equal(gv.totalRaised.toNumber(), 0);
     });
 
     it("rejects genesis init from a non-authority", async () => {
-      await expectAnchorError(initTier(1, 100, 1_000 * ONE, 1_000 * ONE, user2), "Unauthorized");
+      await expectAnchorError(initTier(1, 250, 1_000 * ONE, 1_000 * ONE, user2), "Unauthorized");
     });
 
     it("rejects an invalid tier", async () => {
@@ -996,13 +1002,43 @@ describe("bullet protocol", () => {
     });
 
     it("enforces the per-user allocation cap", async () => {
-      await initTier(1, 100, 1_000 * ONE, 50 * ONE); // maxAllocation = 50 ANSEM
+      await initTier(1, 250, 1_000 * ONE, 50 * ONE); // maxAllocation = 50 ANSEM
       await expectAnchorError(depositTier(1, wallet, userAnsem, 60 * ONE), "AllocationExceeded");
     });
 
     it("enforces the total deposit cap", async () => {
-      await initTier(2, 150, 50 * ONE, 1_000 * ONE); // cap = 50 ANSEM, alloc = 1000
+      await initTier(2, 400, 50 * ONE, 1_000 * ONE); // cap = 50 ANSEM, alloc = 1000
       await expectAnchorError(depositTier(2, wallet, userAnsem, 60 * ONE), "DepositCapExceeded");
+    });
+
+    it("routes genesis tier fee entirely to POL on finalize", async () => {
+      const TIER_FEE = 2; // Public tier (4% fee), initialized in deposit-cap test
+      await depositTier(TIER_FEE, wallet, userAnsem, 40 * ONE);
+
+      const gv = genesisVaultPda(TIER_FEE);
+      const polBefore = await bal(connection, polVault);
+      const feeBefore = await bal(connection, feeRecipientAta);
+
+      await program.methods
+        .finalizeGenesis()
+        .accountsPartial({
+          authority: wallet.publicKey,
+          protocol: protocolPda,
+          bulletMint,
+          ansemMint,
+          vault,
+          polVault,
+          genesisVault: gv,
+          tokenVault: genesisTokenPda(TIER_FEE),
+          bulletVault: genesisBulletPda(TIER_FEE),
+          tokenProgram: TOKEN_PROGRAM_ID,
+          bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
+        })
+        .rpc();
+
+      const expectedFee = (40n * BigInt(ONE) * 400n) / BPS_DENOM;
+      assert.equal((await bal(connection, polVault)) - polBefore, expectedFee);
+      assert.equal((await bal(connection, feeRecipientAta)) - feeBefore, 0n);
     });
 
     it("finalizes: skims tier fee, moves ANSEM to backing, mints BULLET for claims", async () => {
@@ -1012,6 +1048,7 @@ describe("bullet protocol", () => {
       await depositTier(TIER0, user2, user2Ansem, 100 * ONE);
 
       const feeAnsemBefore = await bal(connection, feeRecipientAta);
+      const polBefore = await bal(connection, polVault);
       const protoBefore = await state();
 
       await program.methods
@@ -1022,8 +1059,7 @@ describe("bullet protocol", () => {
           bulletMint,
           ansemMint,
           vault,
-          feeRecipient: feeRecipient.publicKey,
-          feeRecipientAta,
+          polVault,
           genesisVault: gv,
           tokenVault: genesisTokenPda(TIER0),
           bulletVault: genesisBulletPda(TIER0),
@@ -1037,13 +1073,9 @@ describe("bullet protocol", () => {
       assert.isFalse(vaultAcc.presaleActive);
       assert.isTrue(vaultAcc.totalBullet.toNumber() > 0, "BULLET minted for claims");
 
-      // Tier fee (1% of 300 ANSEM = 3 ANSEM) went to the fee recipient.
-      const raised = 300n * BigInt(ONE);
-      const expectedFee = (raised * 100n) / BPS_DENOM;
-      assert.equal(
-        ((await bal(connection, feeRecipientAta)) - feeAnsemBefore).toString(),
-        expectedFee.toString()
-      );
+      // VIP tier = 0% presale fee.
+      assert.equal((await bal(connection, feeRecipientAta)) - feeAnsemBefore, 0n);
+      assert.equal((await bal(connection, polVault)) - polBefore, 0n);
 
       const protoAfter = await state();
       assert.isTrue(protoAfter.supply > protoBefore.supply, "protocol supply grows on finalize");

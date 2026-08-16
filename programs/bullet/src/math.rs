@@ -27,7 +27,7 @@ pub fn assert_floor_non_decreasing(before: u64, after: u64) -> Result<()> {
     Ok(())
 }
 
-/// Ansem → BULLET gross (before 97.5% haircut).
+/// Ansem → BULLET gross (before 95% haircut).
 /// After Ansem is already in vault: gross = s * supply / (backing - s).
 /// If supply == 0 → 1:1.
 pub fn ansem_to_bullet_gross(s: u64, supply: u64, backing_after: u64) -> Result<u64> {
@@ -46,7 +46,7 @@ pub fn ansem_to_bullet_gross(s: u64, supply: u64, backing_after: u64) -> Result<
         .ok_or(BulletError::DivisionByZero.into())
 }
 
-/// BULLET → Ansem gross (before 97.5% haircut).
+/// BULLET → Ansem gross (before 95% haircut).
 pub fn bullet_to_ansem_gross(t: u64, supply: u64, backing_amt: u64) -> Result<u64> {
     require!(supply > 0, BulletError::DivisionByZero);
     t.checked_mul(backing_amt)
@@ -86,7 +86,7 @@ pub fn split_fee(fee: u64) -> Result<(u64, u64)> {
     Ok((pol, bribe))
 }
 
-/// interest = borrow * (0.039 * days / 365) + 0.1% of borrow
+/// interest = borrow * (0.078 * days / 365) + 0.2% of borrow
 pub fn interest_fee(borrow_amt: u64, days: u16) -> Result<u64> {
     let apy_part = (borrow_amt as u128)
         .checked_mul(INTEREST_APY_BPS as u128)

@@ -379,7 +379,7 @@ export default function MintAndBurnPage() {
             ⓘ
           </span>
           <p>
-            Each mint/burn has a 2.5% fee (70% backing / 15% POL / 15% fee recipient). Protocol
+            Each mint/burn has a 5% fee (70% backing / 15% POL / 15% fee recipient). Protocol
             mint and burn run on Solana Devnet — no AMM swap required.
           </p>
         </div>

@@ -188,7 +188,7 @@ describe("bullet loan liquidation (bankrun clock warp)", () => {
       .rpc();
 
     await hookProgram.methods
-      .initializeConfig(500)
+      .initializeConfig(800)
       .accountsPartial({
         authority: payer.publicKey,
         mint: bulletMint,

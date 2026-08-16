@@ -5,9 +5,9 @@ use anchor_lang::prelude::*;
 pub const ANSEM_MINT_MAINNET: &str = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
 
 /// Protocol parameters (fee / floor model).
-pub const PROTOCOL_FEE_BPS: u64 = 250; // 2.5%
+pub const PROTOCOL_FEE_BPS: u64 = 500; // 5%
 pub const BPS_DENOM: u64 = 10_000;
-pub const OUT_FEE_NUM: u64 = 975; // user receives 97.5%
+pub const OUT_FEE_NUM: u64 = 950; // user receives 95%
 pub const OUT_FEE_DEN: u64 = 1_000;
 
 pub const FEE_BACKING_BPS: u64 = 7_000; // 70% of fee stays in backing
@@ -15,11 +15,11 @@ pub const FEE_POL_BPS: u64 = 1_500; // 15% → POL vault
 pub const FEE_BRIBE_BPS: u64 = 1_500; // 15% → fee recipient
 
 pub const LTV_BPS: u64 = 9_900; // 99%
-pub const INTEREST_APY_BPS: u64 = 390; // 3.9% APY
-pub const BASE_BORROW_FEE_BPS: u64 = 10; // 0.1%
+pub const INTEREST_APY_BPS: u64 = 780; // 7.8% APY
+pub const BASE_BORROW_FEE_BPS: u64 = 20; // 0.2%
 
-pub const LEVERAGE_BAKE_BPS: u64 = 100; // 1%
-pub const OVERCOLLAT_BPS: u64 = 100; // 1%
+pub const LEVERAGE_BAKE_BPS: u64 = 200; // 2%
+pub const OVERCOLLAT_BPS: u64 = 200; // 2%
 
 pub const MIN_LOAN_DAYS: u16 = 1;
 pub const MAX_LOAN_DAYS: u16 = 365;
@@ -33,8 +33,8 @@ pub const DEFAULT_MAX_SUPPLY: u64 = 2_500 * 1_000_000;
 pub const TRANSFER_HOOK_PROGRAM_ID: Pubkey =
     anchor_lang::solana_program::pubkey!("DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp");
 
-/// Default 5% tax on DEX transfers (basis points). Adjustable via hook + SetTransferFee.
-pub const DEFAULT_DEX_TRANSFER_TAX_BPS: u16 = 500;
+/// Default 8% tax on DEX transfers (basis points). Adjustable via hook + SetTransferFee.
+pub const DEFAULT_DEX_TRANSFER_TAX_BPS: u16 = 800;
 
 #[account]
 #[derive(InitSpace)]
@@ -100,7 +100,7 @@ pub struct GenesisVault {
     pub token_vault: Pubkey,
     /// BULLET ATA owned by this vault PDA after finalize.
     pub bullet_vault: Pubkey,
-    /// Tier mint fee in bps (0 / 100 / 150).
+    /// Tier mint fee in bps (0 / 250 / 400 = VIP / Community / Public).
     pub fee_bps: u16,
     pub deposit_cap: u64,
     pub max_allocation: u64,

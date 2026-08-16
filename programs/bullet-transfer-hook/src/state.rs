@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
-/// Default DEX transfer tax: 5% (500 bps). Actual fee is on the mint TransferFee extension.
-pub const DEFAULT_TRANSFER_TAX_BPS: u16 = 500;
+/// Default DEX transfer tax: 8% (800 bps). Actual fee is on the mint TransferFee extension.
+pub const DEFAULT_TRANSFER_TAX_BPS: u16 = 800;
 
 pub const MAX_DEX_POOLS: usize = 12;
 pub const MAX_EXEMPT_ACCOUNTS: usize = 8;

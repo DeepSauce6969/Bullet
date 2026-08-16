@@ -29,7 +29,7 @@ const HOOK_PROGRAM_ID = new PublicKey(
   "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
 );
 const ONE = 1_000_000;
-const DEX_TAX_BPS = 500; // 5%
+const DEX_TAX_BPS = 800; // 8%
 
 async function bal(
   connection: anchor.web3.Connection,
@@ -240,7 +240,7 @@ describe("bullet transfer hook (DEX tax)", () => {
     assert.isTrue(failed, "wallet transfer should be rejected by hook");
   });
 
-  it("allows DEX pool transfer with 5% tax", async () => {
+  it("allows DEX pool transfer with 8% tax", async () => {
     const dexPool = Keypair.generate();
     const dexPoolBullet = getAssociatedTokenAddressSync(
       bulletMint,

@@ -64,7 +64,7 @@ function formatExpiration(days: number): string {
 function computeMaxLeveragePosition(ansemBal: number, days: number): number {
   if (ansemBal <= 0) return 0;
 
-  // Coarse approx: bake 1% + over 1% of 99% + interest on ~98% ≈ ~1.5%+
+  // Coarse approx: bake 2% + over 2% of 98% + interest on ~96% ≈ ~3%+
   let lo = 0;
   let hi = ansemBal / 0.015;
   for (let i = 0; i < 40; i++) {

@@ -47,10 +47,10 @@ export const EXPLORER_TX = (sig: string) =>
 export const BULLET_DECIMALS = 6;
 export const ANSEM_DECIMALS = 6;
 export const DEFAULT_MAX_SUPPLY = 2_500;
-export const BUY_FEE_PCT = 2.5;
-export const SELL_FEE_PCT = 2.5;
-export const BORROW_APR_PCT = 3.9;
-export const BASE_BORROW_FEE_PCT = 0.1;
+export const BUY_FEE_PCT = 5;
+export const SELL_FEE_PCT = 5;
+export const BORROW_APR_PCT = 7.8;
+export const BASE_BORROW_FEE_PCT = 0.2;
 
 /** Anchor sha256("global:<name>")[0..8] */
 const IX_DISC: Record<string, number[]> = {
@@ -588,8 +588,8 @@ export const GENESIS_TIERS: {
   feePercent: number;
 }[] = [
   { id: "vip", tier: 0, name: "VIP Genesis", fee: "0%", feePercent: 0 },
-  { id: "community", tier: 1, name: "Community", fee: "1%", feePercent: 1 },
-  { id: "public", tier: 2, name: "Public", fee: "1.5%", feePercent: 1.5 },
+  { id: "community", tier: 1, name: "Community", fee: "2.5%", feePercent: 2.5 },
+  { id: "public", tier: 2, name: "Public", fee: "4%", feePercent: 4 },
 ];
 
 export function genesisVaultPda(tier: number): PublicKey {

@@ -204,7 +204,7 @@ export default function AnalyticsPage() {
                 Borrow Interest Formula
                 <TooltipInfo content="Base fee is paid upfront. APY is annualized and added to debt over time." />
               </span>
-              <span className="font-bold text-[var(--foreground)]">3.9% APY + 0.1% Base Fee</span>
+              <span className="font-bold text-[var(--foreground)]">7.8% APY + 0.2% Base Fee</span>
             </div>
 
             <div className="flex justify-between py-1.5">

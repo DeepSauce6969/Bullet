@@ -624,7 +624,7 @@ pub struct FinalizeGenesis<'info> {
         has_one = bullet_mint,
         has_one = ansem_mint,
         has_one = vault,
-        has_one = fee_recipient,
+        has_one = pol_vault,
     )]
     pub protocol: Box<Account<'info, Protocol>>,
 
@@ -637,16 +637,8 @@ pub struct FinalizeGenesis<'info> {
     #[account(mut, address = protocol.vault)]
     pub vault: Box<Account<'info, TokenAccountClassic>>,
 
-    /// CHECK: fee recipient wallet
-    #[account(address = protocol.fee_recipient)]
-    pub fee_recipient: UncheckedAccount<'info>,
-
-    #[account(
-        mut,
-        associated_token::mint = ansem_mint,
-        associated_token::authority = fee_recipient,
-    )]
-    pub fee_recipient_ata: Box<Account<'info, TokenAccountClassic>>,
+    #[account(mut, address = protocol.pol_vault)]
+    pub pol_vault: Box<Account<'info, TokenAccountClassic>>,
 
     #[account(
         mut,

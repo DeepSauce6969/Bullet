@@ -6,15 +6,15 @@
 export const ANSEM_MINT_MAINNET =
   "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
 
-export const PROTOCOL_FEE_BPS = 250n; // 2.5%
+export const PROTOCOL_FEE_BPS = 500n; // 5%
 export const BPS = 10_000n;
-export const OUT_FEE_NUM = 975n;
+export const OUT_FEE_NUM = 950n;
 export const OUT_FEE_DEN = 1_000n;
 export const LTV_BPS = 9_900n;
-export const INTEREST_APY_BPS = 390n;
-export const BASE_BORROW_FEE_BPS = 10n;
-export const LEVERAGE_BAKE_BPS = 100n;
-export const OVERCOLLAT_BPS = 100n;
+export const INTEREST_APY_BPS = 780n;
+export const BASE_BORROW_FEE_BPS = 20n;
+export const LEVERAGE_BAKE_BPS = 200n;
+export const OVERCOLLAT_BPS = 200n;
 export const DEFAULT_MAX_SUPPLY = 2_500n * 1_000_000n;
 
 export function backing(vault: bigint, borrowed: bigint): bigint {

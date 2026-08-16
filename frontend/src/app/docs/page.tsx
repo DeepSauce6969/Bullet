@@ -74,7 +74,7 @@ Floor   = Backing / total_supply`}
           steps={[
             {
               title: "Mint",
-              body: "Ansem enters the vault; BULLET supply grows. Most of the 2.5% fee stays in backing.",
+              body: "Ansem enters the vault; BULLET supply grows. Most of the 5% fee stays in backing.",
             },
             {
               title: "Borrow",
@@ -129,7 +129,7 @@ Floor   = Backing / total_supply`}
           steps={[
             {
               title: "Deposit",
-              body: "Send Ansem to mint BULLET at the floor minus the 2.5% protocol fee.",
+              body: "Send Ansem to mint BULLET at the floor minus the 5% protocol fee.",
             },
             {
               title: "Hold or borrow",
@@ -162,7 +162,7 @@ Floor   = Backing / total_supply`}
             },
             {
               term: "Interest",
-              definition: "3.9% APY × days/365 + 0.1% base, paid upfront.",
+              definition: "7.8% APY × days/365 + 0.2% base, paid upfront.",
             },
             {
               term: "Duration",
@@ -170,7 +170,7 @@ Floor   = Backing / total_supply`}
             },
             {
               term: "Leverage bake",
-              definition: "1% of notional Ansem plus over-collateralization fees.",
+              definition: "2% of notional Ansem plus over-collateralization fees.",
             },
           ]}
         />
@@ -214,7 +214,7 @@ Floor   = Backing / total_supply`}
           items={[
             {
               term: "Mint / burn fee",
-              definition: "2.5% — user receives 97.5% of curve output.",
+              definition: "5% — user receives 95% of curve output.",
             },
             {
               term: "Fee split",
@@ -222,11 +222,11 @@ Floor   = Backing / total_supply`}
             },
             {
               term: "Borrow APY",
-              definition: "3.9% annualized, scaled by loan duration.",
+              definition: "7.8% annualized, scaled by loan duration.",
             },
             {
               term: "Base borrow fee",
-              definition: "0.1% on principal, paid upfront with interest.",
+              definition: "0.2% on principal, paid upfront with interest.",
             },
           ]}
         />

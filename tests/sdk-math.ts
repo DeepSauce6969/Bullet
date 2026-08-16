@@ -24,12 +24,12 @@ describe("sdk/math", () => {
     assert.equal(floorScaled(200n * ONE, 100n * ONE), 2_000_000n);
   });
 
-  it("protocolFee is 2.5%", () => {
-    assert.equal(protocolFee(100n * ONE), 2_500_000n);
+  it("protocolFee is 5%", () => {
+    assert.equal(protocolFee(100n * ONE), 5_000_000n);
   });
 
-  it("applyOutFee keeps 97.5% after outbound fee", () => {
-    assert.equal(applyOutFee(100n * ONE), 97_500_000n);
+  it("applyOutFee keeps 95% after outbound fee", () => {
+    assert.equal(applyOutFee(100n * ONE), 95_000_000n);
   });
 
   it("splitFee divides fee 15/15/70", () => {
@@ -44,16 +44,16 @@ describe("sdk/math", () => {
     const borrow = 100n * ONE;
     const fee30 = interestFee(borrow, 30);
     assert.isTrue(fee30 > 0n);
-    assert.isTrue(fee30 > (borrow * 10n) / 10_000n, "includes base borrow fee");
+    assert.isTrue(fee30 > (borrow * 20n) / 10_000n, "includes base borrow fee");
   });
 
   it("leverageFees matches on-chain fee structure", () => {
     const amt = 20n * ONE;
     const fees = leverageFees(amt, 30);
-    assert.equal(fees.bakeFee, (amt * 100n) / 10_000n);
+    assert.equal(fees.bakeFee, (amt * 200n) / 10_000n);
     assert.equal(fees.userSpy, amt - fees.bakeFee);
     assert.equal(fees.userBorrow, (fees.userSpy * 9_900n) / 10_000n);
-    assert.equal(fees.overCollat, (fees.userSpy * 100n) / 10_000n);
+    assert.equal(fees.overCollat, (fees.userSpy * 200n) / 10_000n);
     assert.equal(
       fees.totalDue,
       fees.bakeFee + fees.interest + fees.overCollat

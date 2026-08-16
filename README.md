@@ -31,10 +31,12 @@ Backing = vault_Ansem + total_borrowed
 Floor   = Backing / total_supply   (never decreases)
 ```
 
-- **Mint**: 2.5% fee, user gets 97.5% of curve output; 70% of fee stays in backing.
-- **Burn**: redeem pro-rata Ansem at 97.5%; same fee split.
-- **Borrow**: lock BULLET, borrow ≤ 99% LTV in Ansem; interest = 3.9% APY × days/365 + 0.1% base, paid upfront.
-- **Leverage**: 1% bake + interest on borrow leg + 1% over-collateral; mints leveraged BULLET into collateral vault.
+- **Mint**: 5% fee, user gets 95% of curve output; 70% of fee stays in backing.
+- **Burn**: redeem pro-rata Ansem at 95%; same fee split.
+- **Borrow**: lock BULLET, borrow ≤ 99% LTV in Ansem; interest = 7.8% APY × days/365 + 0.2% base, paid upfront.
+- **Leverage**: 2% bake + interest on borrow leg + 2% over-collateral; mints leveraged BULLET into collateral vault.
+- **DEX trading**: 8% transfer fee on registered pool swaps (Token-2022 hook); wallet-to-wallet transfers blocked.
+- **Genesis pre-deposit**: tier fees 0% / 2.5% / 4% (VIP / Community / Public); **100% of tier fee → POL** on finalize.
 - **Liquidate**: after expiry, burn collateral; borrowed Ansem stays in backing math → floor rises for holders.
 
 ## Repo layout
