@@ -18,4 +18,8 @@ pub enum HookError {
     NotRegistered,
     #[msg("Entry already registered")]
     AlreadyRegistered,
+    #[msg("Math overflow")]
+    MathOverflow,
+    #[msg("Config layout already migrated")]
+    AlreadyMigrated,
 }

@@ -75,6 +75,11 @@ pub mod bullet {
         instructions::admin::set_max_supply(ctx, max_supply)
     }
 
+    /// Update a genesis vault tier fee (bps). Authority only; not after finalize.
+    pub fn set_genesis_fee_bps(ctx: Context<SetGenesisFeeBps>, fee_bps: u16) -> Result<()> {
+        instructions::admin::set_genesis_fee_bps(ctx, fee_bps)
+    }
+
     /// Initialize a genesis pre-deposit vault tier (0=VIP, 1=Community, 2=Public).
     pub fn init_genesis_vault(
         ctx: Context<InitGenesisVault>,

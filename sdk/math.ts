@@ -6,9 +6,9 @@
 export const ANSEM_MINT_MAINNET =
   "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
 
-export const PROTOCOL_FEE_BPS = 500n; // 5%
+export const PROTOCOL_FEE_BPS = 400n; // 4%
 export const BPS = 10_000n;
-export const OUT_FEE_NUM = 950n;
+export const OUT_FEE_NUM = 960n;
 export const OUT_FEE_DEN = 1_000n;
 export const LTV_BPS = 9_900n;
 export const INTEREST_APY_BPS = 780n;

@@ -74,7 +74,7 @@ Floor   = Backing / total_supply`}
           steps={[
             {
               title: "Mint",
-              body: "Ansem enters the vault; BULLET supply grows. Most of the 5% fee stays in backing.",
+              body: "Ansem enters the vault; BULLET supply grows. Most of the 4% fee stays in backing.",
             },
             {
               title: "Borrow",
@@ -129,7 +129,7 @@ Floor   = Backing / total_supply`}
           steps={[
             {
               title: "Deposit",
-              body: "Send Ansem to mint BULLET at the floor minus the 5% protocol fee.",
+              body: "Send Ansem to mint BULLET at the floor minus the 4% protocol fee.",
             },
             {
               title: "Hold or borrow",
@@ -214,7 +214,16 @@ Floor   = Backing / total_supply`}
           items={[
             {
               term: "Mint / burn fee",
-              definition: "5% — user receives 95% of curve output.",
+              definition: "4% — user receives 96% of curve output.",
+            },
+            {
+              term: "DEX transfer tax",
+              definition:
+                "4–8% on registered pool swaps, stepped down by lifetime DEX volume.",
+            },
+            {
+              term: "Genesis vault fees",
+              definition: "VIP 0% · Community 2.5% · Public 3.5% (→ POL on finalize).",
             },
             {
               term: "Fee split",

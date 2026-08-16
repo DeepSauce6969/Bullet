@@ -24,12 +24,12 @@ describe("sdk/math", () => {
     assert.equal(floorScaled(200n * ONE, 100n * ONE), 2_000_000n);
   });
 
-  it("protocolFee is 5%", () => {
-    assert.equal(protocolFee(100n * ONE), 5_000_000n);
+  it("protocolFee is 4%", () => {
+    assert.equal(protocolFee(100n * ONE), 4_000_000n);
   });
 
-  it("applyOutFee keeps 95% after outbound fee", () => {
-    assert.equal(applyOutFee(100n * ONE), 95_000_000n);
+  it("applyOutFee keeps 96% after outbound fee", () => {
+    assert.equal(applyOutFee(100n * ONE), 96_000_000n);
   });
 
   it("splitFee divides fee 15/15/70", () => {

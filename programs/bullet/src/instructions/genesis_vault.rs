@@ -148,7 +148,7 @@ pub fn withdraw(ctx: Context<WithdrawGenesis>) -> Result<()> {
     Ok(())
 }
 
-/// Move net ANSEM into protocol vault, mint BULLET into genesis bullet vault (no 5% out-fee).
+/// Move net ANSEM into protocol vault, mint BULLET into genesis bullet vault (no mint out-fee).
 pub fn finalize(ctx: Context<FinalizeGenesis>) -> Result<()> {
     let raised = ctx.accounts.genesis_vault.total_raised;
     require!(raised > 0, BulletError::ZeroAmount);
@@ -209,7 +209,7 @@ pub fn finalize(ctx: Context<FinalizeGenesis>) -> Result<()> {
         .checked_add(net)
         .ok_or(BulletError::MathOverflow)?;
     let backing_for_curve = math::backing(vault_after_in, protocol_total_borrowed)?;
-    // Presale mint: no 5% out-fee (tier fee already taken)
+    // Presale mint: no protocol out-fee (tier fee already taken)
     let bullet_out =
         math::ansem_to_bullet_gross(net, protocol_total_supply, backing_for_curve)?;
 

@@ -29,7 +29,7 @@ pub fn assert_floor_non_decreasing(before: u64, after: u64) -> Result<()> {
     Ok(())
 }
 
-/// Ansem → BULLET gross (before 95% haircut).
+/// Ansem → BULLET gross (before 4% out-fee haircut).
 /// After Ansem is already in vault: gross = s * supply / (backing - s).
 /// If supply == 0 → 1:1.
 /// Uses u128 intermediates so `s * supply` does not overflow at real supply sizes.
@@ -51,7 +51,7 @@ pub fn ansem_to_bullet_gross(s: u64, supply: u64, backing_after: u64) -> Result<
     u64::try_from(gross).map_err(|_| BulletError::MathOverflow.into())
 }
 
-/// BULLET → Ansem gross (before 95% haircut).
+/// BULLET → Ansem gross (before 4% out-fee haircut).
 /// Uses u128 intermediates so `t * backing` does not overflow at real sizes.
 pub fn bullet_to_ansem_gross(t: u64, supply: u64, backing_amt: u64) -> Result<u64> {
     require!(supply > 0, BulletError::DivisionByZero);

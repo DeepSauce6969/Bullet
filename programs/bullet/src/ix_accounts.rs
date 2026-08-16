@@ -481,6 +481,26 @@ pub struct SetMaxSupply<'info> {
 }
 
 #[derive(Accounts)]
+pub struct SetGenesisFeeBps<'info> {
+    pub authority: Signer<'info>,
+
+    #[account(
+        seeds = [Protocol::SEED],
+        bump = protocol.bump,
+        has_one = authority @ BulletError::Unauthorized,
+    )]
+    pub protocol: Box<Account<'info, Protocol>>,
+
+    #[account(
+        mut,
+        seeds = [GenesisVault::SEED, &[genesis_vault.tier]],
+        bump = genesis_vault.bump,
+        constraint = genesis_vault.protocol == protocol.key() @ BulletError::Unauthorized,
+    )]
+    pub genesis_vault: Box<Account<'info, GenesisVault>>,
+}
+
+#[derive(Accounts)]
 #[instruction(tier: u8)]
 pub struct InitGenesisVault<'info> {
     #[account(mut)]

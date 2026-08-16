@@ -26,7 +26,7 @@ const RPC = "https://api.devnet.solana.com";
 const TIERS = [
   { tier: 0, name: "VIP Genesis", feeBps: 0, depositCap: 250_000n * 1_000_000n, maxAlloc: 25_000n * 1_000_000n },
   { tier: 1, name: "Community", feeBps: 250, depositCap: 500_000n * 1_000_000n, maxAlloc: 10_000n * 1_000_000n },
-  { tier: 2, name: "Public", feeBps: 400, depositCap: 1_000_000n * 1_000_000n, maxAlloc: 5_000n * 1_000_000n },
+  { tier: 2, name: "Public", feeBps: 350, depositCap: 1_000_000n * 1_000_000n, maxAlloc: 5_000n * 1_000_000n },
 ];
 
 function loadKeypair(p: string): Keypair {

@@ -31,12 +31,12 @@ Backing = vault_Ansem + total_borrowed
 Floor   = Backing / total_supply   (never decreases)
 ```
 
-- **Mint**: 5% fee, user gets 95% of curve output; 70% of fee stays in backing.
-- **Burn**: redeem pro-rata Ansem at 95%; same fee split.
+- **Mint**: 4% fee, user gets 96% of curve output; 70% of fee stays in backing.
+- **Burn**: redeem pro-rata Ansem at 96%; same fee split.
 - **Borrow**: lock BULLET, borrow ≤ 99% LTV in Ansem; interest = 7.8% APY × days/365 + 0.2% base, paid upfront.
 - **Leverage**: 2% bake + interest on borrow leg + 2% over-collateral; mints leveraged BULLET into collateral vault.
-- **DEX trading**: 8% transfer fee on registered pool swaps (Token-2022 hook); wallet-to-wallet transfers blocked.
-- **Genesis pre-deposit**: tier fees 0% / 2.5% / 4% (VIP / Community / Public); **100% of tier fee → POL** on finalize.
+- **DEX trading**: Token-2022 transfer tax **4–8%**, dynamic by lifetime DEX volume (starts at 8%, steps down as volume grows); wallet-to-wallet transfers blocked.
+- **Genesis pre-deposit**: tier fees 0% / 2.5% / 3.5% (VIP / Community / Public); **100% of tier fee → POL** on finalize.
 - **Liquidate**: after expiry, burn collateral; borrowed Ansem stays in backing math → floor rises for holders.
 
 ## Repo layout
@@ -89,6 +89,8 @@ Create the bribe wallet’s Ansem ATA before the first mint/burn/borrow.
 | `leverage` | One-click leveraged position |
 | `liquidate` | Expire loan → burn collateral |
 | `set_fee_recipient` | Update bribe wallet |
+| `set_max_supply` | Raise/lower max BULLET supply |
+| `set_genesis_fee_bps` | Update a genesis vault exit fee |
 
 ## Risk note
 

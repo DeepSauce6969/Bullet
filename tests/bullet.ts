@@ -22,11 +22,11 @@ const ONE = 1_000_000; // 1 token (6 decimals)
 const MAX_SUPPLY = new anchor.BN(5_000_000 * ONE);
 
 // Mirror of on-chain constants (programs/bullet/src/state.rs).
-const PROTOCOL_FEE_BPS = 500n;
+const PROTOCOL_FEE_BPS = 400n;
 const BPS_DENOM = 10_000n;
 const FEE_POL_BPS = 1_500n;
 const FEE_BRIBE_BPS = 1_500n;
-const OUT_FEE_NUM = 950n;
+const OUT_FEE_NUM = 960n;
 const OUT_FEE_DEN = 1_000n;
 
 /** Replicates math::floor_scaled: supply==0 → 1e6, else backing*1e6/supply. */
@@ -494,12 +494,12 @@ describe("bullet protocol", () => {
     return sig;
   }
 
-  it("mints BULLET 1:1 (minus 5% out-fee) on the first deposit and routes fees", async () => {
+  it("mints BULLET 1:1 (minus 4% out-fee) on the first deposit and routes fees", async () => {
     const deposit = 100 * ONE;
     userBullet = await ensureBulletAta(wallet.publicKey);
     await mint(wallet, userAnsem, userBullet, deposit);
 
-    // supply started at 0 → gross 1:1, user gets 95%.
+    // supply started at 0 → gross 1:1, user gets 96%.
     const expectedBullet = (BigInt(deposit) * OUT_FEE_NUM) / OUT_FEE_DEN;
     const fee = (BigInt(deposit) * PROTOCOL_FEE_BPS) / BPS_DENOM;
     const expectedPol = (fee * FEE_POL_BPS) / BPS_DENOM;

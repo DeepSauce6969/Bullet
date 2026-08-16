@@ -48,8 +48,8 @@ export const EXPLORER_TX = (sig: string) =>
 export const BULLET_DECIMALS = 6;
 export const ANSEM_DECIMALS = 6;
 export const DEFAULT_MAX_SUPPLY = 5_000_000;
-export const BUY_FEE_PCT = 5;
-export const SELL_FEE_PCT = 5;
+export const BUY_FEE_PCT = 4;
+export const SELL_FEE_PCT = 4;
 export const BORROW_APR_PCT = 7.8;
 export const BASE_BORROW_FEE_PCT = 0.2;
 
@@ -661,7 +661,7 @@ export const GENESIS_TIERS: {
 }[] = [
   { id: "vip", tier: 0, name: "VIP Genesis", fee: "0%", feePercent: 0 },
   { id: "community", tier: 1, name: "Community", fee: "2.5%", feePercent: 2.5 },
-  { id: "public", tier: 2, name: "Public", fee: "4%", feePercent: 4 },
+  { id: "public", tier: 2, name: "Public", fee: "3.5%", feePercent: 3.5 },
 ];
 
 export function genesisVaultPda(tier: number): PublicKey {

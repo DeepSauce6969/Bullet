@@ -35,6 +35,7 @@ pub mod bullet_transfer_hook {
         cfg.padding = [0u8; 3];
         cfg.dex_pools = [Pubkey::default(); MAX_DEX_POOLS];
         cfg.exempt_accounts = [Pubkey::default(); MAX_EXEMPT_ACCOUNTS];
+        cfg.lifetime_volume = 0;
         Ok(())
     }
 
@@ -47,8 +48,8 @@ pub mod bullet_transfer_hook {
                 },
                 Seed::AccountKey { index: 1 },
             ],
-            false,
-            false,
+            false, // is_signer
+            true,  // is_writable — volume + cached tax updates on DEX transfers
         )?];
 
         let account_size = ExtraAccountMetaList::size_of(account_metas.len())? as usize;
@@ -82,6 +83,27 @@ pub mod bullet_transfer_hook {
         Ok(())
     }
 
+    /// Flip hook_config ExtraAccountMeta to writable (post-upgrade migration).
+    pub fn update_extra_account_meta_list(
+        ctx: Context<UpdateExtraAccountMetaList>,
+    ) -> Result<()> {
+        let account_metas = vec![ExtraAccountMeta::new_with_seeds(
+            &[
+                Seed::Literal {
+                    bytes: HOOK_CONFIG_SEED.to_vec(),
+                },
+                Seed::AccountKey { index: 1 },
+            ],
+            false,
+            true,
+        )?];
+        ExtraAccountMetaList::update::<ExecuteInstruction>(
+            &mut ctx.accounts.extra_account_meta_list.try_borrow_mut_data()?,
+            &account_metas,
+        )?;
+        Ok(())
+    }
+
     /// Register a DEX pool BULLET token account (source or destination in swaps).
     pub fn register_dex_pool(ctx: Context<RegisterDexPool>) -> Result<()> {
         ctx.accounts
@@ -108,27 +130,85 @@ pub mod bullet_transfer_hook {
             .remove_exempt(ctx.accounts.token_account.key())
     }
 
-    /// Update cached tax bps (mirror of mint TransferFee; use `set_transfer_fee` on mint to apply).
+    /// Update cached tax bps (clamp 4–8%). Still call mint `SetTransferFee` to apply.
     pub fn set_transfer_tax_bps(
         ctx: Context<SetTransferTaxBps>,
         transfer_tax_bps: u16,
     ) -> Result<()> {
-        require!(transfer_tax_bps <= 10_000, HookError::InvalidBps);
+        require!(
+            (DEX_TAX_MIN_BPS..=DEX_TAX_MAX_BPS).contains(&transfer_tax_bps),
+            HookError::InvalidBps
+        );
         ctx.accounts.hook_config.transfer_tax_bps = transfer_tax_bps;
         Ok(())
     }
 
+    /// Recompute cached tax from lifetime DEX volume (4–8% schedule).
+    /// Permissionless — does not change the mint TransferFee by itself.
+    /// Authority should follow with `SetTransferFee` (see scripts/sync-dex-tax.ts).
+    pub fn refresh_tax_from_volume(ctx: Context<RefreshTaxFromVolume>) -> Result<()> {
+        let cfg = &mut ctx.accounts.hook_config;
+        let next = dex_tax_bps_from_volume(cfg.lifetime_volume);
+        cfg.transfer_tax_bps = next;
+        msg!(
+            "dex tax → {} bps (lifetime_volume={})",
+            next,
+            cfg.lifetime_volume
+        );
+        Ok(())
+    }
+
+    /// One-time: grow HookConfig account for `lifetime_volume` field after program upgrade.
+    pub fn migrate_config_layout(ctx: Context<MigrateConfigLayout>) -> Result<()> {
+        let account = ctx.accounts.hook_config.to_account_info();
+        let new_len = 8 + HookConfig::INIT_SPACE;
+        require!(account.data_len() < new_len, HookError::AlreadyMigrated);
+
+        // Verify authority (bytes 8..40 after Anchor discriminator).
+        {
+            let data = account.try_borrow_data()?;
+            require!(data.len() >= 40, HookError::InvalidMint);
+            let stored = Pubkey::new_from_array(data[8..40].try_into().unwrap());
+            require_keys_eq!(stored, ctx.accounts.authority.key(), HookError::Unauthorized);
+        }
+
+        let rent = Rent::get()?;
+        let need = rent.minimum_balance(new_len);
+        let current = account.lamports();
+        if need > current {
+            let topup = need.saturating_sub(current);
+            anchor_lang::system_program::transfer(
+                CpiContext::new(
+                    ctx.accounts.system_program.to_account_info(),
+                    anchor_lang::system_program::Transfer {
+                        from: ctx.accounts.authority.to_account_info(),
+                        to: account.clone(),
+                    },
+                ),
+                topup,
+            )?;
+        }
+        account.realloc(new_len, true)?;
+        Ok(())
+    }
+
     /// Invoked by Token-2022 on every BULLET `Transfer` / `TransferChecked`.
-    pub fn transfer_hook(ctx: Context<TransferHook>, _amount: u64) -> Result<()> {
-        let cfg = &ctx.accounts.hook_config;
+    pub fn transfer_hook(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
         let source = ctx.accounts.source_token.key();
         let dest = ctx.accounts.destination_token.key();
+        let cfg = &mut ctx.accounts.hook_config;
 
         if cfg.is_exempt(source) || cfg.is_exempt(dest) {
             return Ok(());
         }
 
         if cfg.is_dex_pool(source) || cfg.is_dex_pool(dest) {
+            cfg.lifetime_volume = cfg
+                .lifetime_volume
+                .checked_add(amount)
+                .ok_or(HookError::MathOverflow)?;
+            // Keep cached target in sync for indexers / sync scripts.
+            cfg.transfer_tax_bps = dex_tax_bps_from_volume(cfg.lifetime_volume);
             return Ok(());
         }
 
@@ -187,6 +267,29 @@ pub struct InitExtraAccountMetaList<'info> {
     pub extra_account_meta_list: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateExtraAccountMetaList<'info> {
+    pub authority: Signer<'info>,
+
+    pub mint: InterfaceAccount<'info, Mint>,
+
+    #[account(
+        seeds = [HOOK_CONFIG_SEED, mint.key().as_ref()],
+        bump = hook_config.bump,
+        has_one = authority @ HookError::Unauthorized,
+        has_one = mint @ HookError::InvalidMint,
+    )]
+    pub hook_config: Account<'info, HookConfig>,
+
+    /// CHECK: existing extra-account-metas PDA.
+    #[account(
+        mut,
+        seeds = [EXTRA_ACCOUNT_METAS_SEED, mint.key().as_ref()],
+        bump
+    )]
+    pub extra_account_meta_list: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -279,6 +382,37 @@ pub struct SetTransferTaxBps<'info> {
     pub hook_config: Account<'info, HookConfig>,
 }
 
+#[derive(Accounts)]
+pub struct RefreshTaxFromVolume<'info> {
+    pub mint: InterfaceAccount<'info, Mint>,
+
+    #[account(
+        mut,
+        seeds = [HOOK_CONFIG_SEED, mint.key().as_ref()],
+        bump = hook_config.bump,
+        has_one = mint @ HookError::InvalidMint,
+    )]
+    pub hook_config: Account<'info, HookConfig>,
+}
+
+#[derive(Accounts)]
+pub struct MigrateConfigLayout<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    pub mint: InterfaceAccount<'info, Mint>,
+
+    /// CHECK: realloc HookConfig PDA; authority must match stored authority after load.
+    #[account(
+        mut,
+        seeds = [HOOK_CONFIG_SEED, mint.key().as_ref()],
+        bump,
+    )]
+    pub hook_config: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
 /// Token-2022 transfer hook `Execute` accounts (plus hook config from extra meta list).
 #[derive(Accounts)]
 pub struct TransferHook<'info> {
@@ -298,6 +432,7 @@ pub struct TransferHook<'info> {
     pub extra_account_meta_list: UncheckedAccount<'info>,
 
     #[account(
+        mut,
         seeds = [HOOK_CONFIG_SEED, mint.key().as_ref()],
         bump = hook_config.bump,
         has_one = mint @ HookError::InvalidMint,

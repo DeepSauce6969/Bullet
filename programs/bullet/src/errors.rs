@@ -52,4 +52,6 @@ pub enum BulletError {
     InvalidTokenProgram,
     #[msg("Invalid transfer hook program")]
     InvalidTransferHook,
+    #[msg("Invalid fee basis points")]
+    InvalidFeeBps,
 }

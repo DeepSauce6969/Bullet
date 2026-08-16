@@ -5,9 +5,9 @@ use anchor_lang::prelude::*;
 pub const ANSEM_MINT_MAINNET: &str = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
 
 /// Protocol parameters (fee / floor model).
-pub const PROTOCOL_FEE_BPS: u64 = 500; // 5%
+pub const PROTOCOL_FEE_BPS: u64 = 400; // 4%
 pub const BPS_DENOM: u64 = 10_000;
-pub const OUT_FEE_NUM: u64 = 950; // user receives 95%
+pub const OUT_FEE_NUM: u64 = 960; // user receives 96%
 pub const OUT_FEE_DEN: u64 = 1_000;
 
 pub const FEE_BACKING_BPS: u64 = 7_000; // 70% of fee stays in backing
@@ -33,8 +33,11 @@ pub const DEFAULT_MAX_SUPPLY: u64 = 5_000_000 * 1_000_000;
 /// Sourced from `bullet_transfer_hook::ID` so localnet `anchor keys sync` stays consistent.
 pub const TRANSFER_HOOK_PROGRAM_ID: Pubkey = bullet_transfer_hook::ID;
 
-/// Default 8% tax on DEX transfers (basis points). Adjustable via hook + SetTransferFee.
+/// Default DEX transfer tax at launch (8%). Live rate is volume-dynamic in 4–8%
+/// via the transfer-hook + mint `SetTransferFee` (see `bullet-transfer-hook`).
 pub const DEFAULT_DEX_TRANSFER_TAX_BPS: u16 = 800;
+pub const DEX_TAX_MIN_BPS: u16 = 400; // 4%
+pub const DEX_TAX_MAX_BPS: u16 = 800; // 8%
 
 #[account]
 #[derive(InitSpace)]
