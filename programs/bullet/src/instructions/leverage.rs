@@ -4,7 +4,8 @@ use crate::events::Leveraged;
 use crate::math;
 use crate::state::*;
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, MintTo, Transfer};
+use anchor_spl::token::{self, Transfer};
+use anchor_spl::token_interface::{self, MintTo};
 
 /// Leverage loop:
 /// bakeFee = 1% of A
@@ -139,9 +140,9 @@ pub fn handler(ctx: Context<Leverage>, ansem_amount: u64, number_of_days: u16) -
         .ok_or(BulletError::MathOverflow)?;
 
     // Mint BULLET directly into collateral vault (locked).
-    token::mint_to(
+    token_interface::mint_to(
         CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.bullet_token_program.to_account_info(),
             MintTo {
                 mint: ctx.accounts.bullet_mint.to_account_info(),
                 to: ctx.accounts.collateral_vault.to_account_info(),

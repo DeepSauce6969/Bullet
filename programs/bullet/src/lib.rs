@@ -6,6 +6,7 @@ pub mod events;
 pub mod instructions;
 pub mod math;
 pub mod state;
+pub mod token2022_mint;
 
 pub use ix_accounts::*;
 

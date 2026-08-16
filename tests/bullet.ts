@@ -2,6 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   createAssociatedTokenAccount,
   getAssociatedTokenAddressSync,
@@ -12,9 +13,14 @@ import {
 import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram } from "@solana/web3.js";
 import { assert } from "chai";
 import type { Bullet } from "../target/types/bullet";
+import type { BulletTransferHook } from "../target/types/bullet_transfer_hook";
 
 /** Reference only — localnet uses a mock mint. */
 export const ANSEM_MAINNET = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
+
+const HOOK_PROGRAM_ID = new PublicKey(
+  "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
+);
 
 const ONE = 1_000_000; // 1 token (6 decimals)
 const MAX_SUPPLY = new anchor.BN(2_500 * ONE);
@@ -33,8 +39,14 @@ function floorScaled(vaultBal: bigint, totalBorrowed: bigint, supply: bigint): b
   return ((vaultBal + totalBorrowed) * 1_000_000n) / supply;
 }
 
-async function bal(connection: anchor.web3.Connection, ata: PublicKey): Promise<bigint> {
-  const acc = await getAccount(connection, ata).catch(() => null);
+async function bal(
+  connection: anchor.web3.Connection,
+  ata: PublicKey,
+  tokenProgram: PublicKey = TOKEN_PROGRAM_ID
+): Promise<bigint> {
+  const rpc = await connection.getTokenAccountBalance(ata, "confirmed").catch(() => null);
+  if (rpc) return BigInt(rpc.value.amount);
+  const acc = await getAccount(connection, ata, "confirmed", tokenProgram).catch(() => null);
   return acc ? acc.amount : 0n;
 }
 
@@ -102,6 +114,7 @@ describe("bullet protocol", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
   const program = anchor.workspace.Bullet as Program<Bullet>;
+  const hookProgram = anchor.workspace.BulletTransferHook as Program<BulletTransferHook>;
   const connection = provider.connection;
   const wallet = provider.wallet as anchor.Wallet;
 
@@ -114,6 +127,9 @@ describe("bullet protocol", () => {
   let vault: PublicKey;
   let polVault: PublicKey;
   let collateralVault: PublicKey;
+
+  let hookConfig: PublicKey;
+  let extraAccountMetaList: PublicKey;
 
   let userAnsem: PublicKey;
   let userBullet: PublicKey;
@@ -136,6 +152,71 @@ describe("bullet protocol", () => {
       borrower.toBuffer(),
       index.toArrayLike(Buffer, "le", 8),
     ]);
+
+  async function ensureBulletAta(owner: PublicKey) {
+    const ata = getAssociatedTokenAddressSync(
+      bulletMint,
+      owner,
+      false,
+      TOKEN_2022_PROGRAM_ID
+    );
+    await withValidatorRetry(async () => {
+      const info = await connection.getAccountInfo(ata);
+      if (!info) {
+        await createAssociatedTokenAccount(
+          connection,
+          wallet.payer,
+          bulletMint,
+          owner,
+          undefined,
+          TOKEN_2022_PROGRAM_ID
+        );
+      }
+    }, `ensureBulletAta ${owner.toBase58()}`);
+    return ata;
+  }
+
+  async function setupTransferHook() {
+    hookConfig = PublicKey.findProgramAddressSync(
+      [Buffer.from("hook_config"), bulletMint.toBuffer()],
+      HOOK_PROGRAM_ID
+    )[0];
+    extraAccountMetaList = PublicKey.findProgramAddressSync(
+      [Buffer.from("extra-account-metas"), bulletMint.toBuffer()],
+      HOOK_PROGRAM_ID
+    )[0];
+    await hookProgram.methods
+      .initializeConfig(500)
+      .accountsPartial({
+        authority: wallet.publicKey,
+        mint: bulletMint,
+        hookConfig,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+    await hookProgram.methods
+      .initializeExtraAccountMetaList()
+      .accountsPartial({
+        payer: wallet.publicKey,
+        mint: bulletMint,
+        extraAccountMetaList,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+    await hookProgram.methods
+      .registerExemptAccount()
+      .accountsPartial({
+        authority: wallet.publicKey,
+        mint: bulletMint,
+        hookConfig,
+        tokenAccount: collateralVault,
+      })
+      .rpc();
+
+    for (const owner of [wallet.publicKey, user2.publicKey, user3.publicKey]) {
+      await ensureBulletAta(owner);
+    }
+  }
 
   async function state() {
     const proto = await program.account.protocol.fetch(protocolPda);
@@ -201,7 +282,12 @@ describe("bullet protocol", () => {
         ),
       "mintTo user"
     );
-    userBullet = getAssociatedTokenAddressSync(bulletMint, wallet.publicKey);
+    userBullet = getAssociatedTokenAddressSync(
+      bulletMint,
+      wallet.publicKey,
+      false,
+      TOKEN_2022_PROGRAM_ID
+    );
 
     // Fund user2 with SOL + ANSEM.
     const sig = await connection.requestAirdrop(user2.publicKey, 2 * LAMPORTS_PER_SOL);
@@ -228,7 +314,12 @@ describe("bullet protocol", () => {
         ),
       "mintTo user2"
     );
-    user2Bullet = getAssociatedTokenAddressSync(bulletMint, user2.publicKey);
+    user2Bullet = getAssociatedTokenAddressSync(
+      bulletMint,
+      user2.publicKey,
+      false,
+      TOKEN_2022_PROGRAM_ID
+    );
 
     const sig3 = await connection.requestAirdrop(user3.publicKey, 2 * LAMPORTS_PER_SOL);
     await connection.confirmTransaction(sig3, "confirmed");
@@ -254,7 +345,12 @@ describe("bullet protocol", () => {
         ),
       "mintTo user3"
     );
-    user3Bullet = getAssociatedTokenAddressSync(bulletMint, user3.publicKey);
+    user3Bullet = getAssociatedTokenAddressSync(
+      bulletMint,
+      user3.publicKey,
+      false,
+      TOKEN_2022_PROGRAM_ID
+    );
   });
 
   // ---- initialize ----
@@ -270,11 +366,15 @@ describe("bullet protocol", () => {
         vault,
         polVault,
         collateralVault,
+        transferHookProgram: HOOK_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID,
+        token2022Program: TOKEN_2022_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       })
       .rpc();
+
+    await setupTransferHook();
 
     const { proto } = await state();
     assert.equal(proto.maxSupply.toString(), MAX_SUPPLY.toString());
@@ -298,8 +398,10 @@ describe("bullet protocol", () => {
           vault,
           polVault,
           collateralVault,
+          transferHookProgram: HOOK_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
           tokenProgram: TOKEN_PROGRAM_ID,
+          token2022Program: TOKEN_2022_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         })
         .rpc(),
@@ -309,7 +411,8 @@ describe("bullet protocol", () => {
 
   // ---- mint ----
 
-  async function mint(user: Keypair | anchor.Wallet, uAnsem: PublicKey, uBullet: PublicKey, amount: number) {
+  async function mint(user: Keypair | anchor.Wallet, uAnsem: PublicKey, _uBullet: PublicKey, amount: number) {
+    const bulletAta = await ensureBulletAta(user.publicKey);
     const builder = program.methods
       .mintBullet(new anchor.BN(amount))
       .accountsPartial({
@@ -320,10 +423,10 @@ describe("bullet protocol", () => {
         vault,
         polVault,
         feeRecipient: feeRecipient.publicKey,
-        feeRecipientAta,
         userAnsem: uAnsem,
-        userBullet: uBullet,
+        userBullet: bulletAta,
         tokenProgram: TOKEN_PROGRAM_ID,
+        bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       });
@@ -342,7 +445,7 @@ describe("bullet protocol", () => {
     const expectedBribe = (fee * FEE_BRIBE_BPS) / BPS_DENOM;
     const expectedVault = BigInt(deposit) - expectedPol - expectedBribe;
 
-    assert.equal((await bal(connection, userBullet)).toString(), expectedBullet.toString());
+    assert.equal((await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID)).toString(), expectedBullet.toString());
     assert.equal((await bal(connection, polVault)).toString(), expectedPol.toString());
     assert.equal((await bal(connection, feeRecipientAta)).toString(), expectedBribe.toString());
     assert.equal((await bal(connection, vault)).toString(), expectedVault.toString());
@@ -358,13 +461,13 @@ describe("bullet protocol", () => {
 
   it("mints again on non-zero supply and keeps the floor up-only", async () => {
     const before = await state();
-    const userBulletBefore = await bal(connection, userBullet);
+    const userBulletBefore = await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID);
 
     await mint(wallet, userAnsem, userBullet, 100 * ONE);
 
     const after = await state();
     assert.isTrue(
-      (await bal(connection, userBullet)) > userBulletBefore,
+      (await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID)) > userBulletBefore,
       "user BULLET should increase"
     );
     assert.isTrue(after.supply > before.supply, "supply should increase");
@@ -392,6 +495,7 @@ describe("bullet protocol", () => {
         userBullet,
         userAnsem,
         tokenProgram: TOKEN_PROGRAM_ID,
+        bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
       })
       .rpc();
 
@@ -417,6 +521,7 @@ describe("bullet protocol", () => {
           userBullet,
           userAnsem,
           tokenProgram: TOKEN_PROGRAM_ID,
+          bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
         })
         .rpc(),
       "ZeroAmount"
@@ -449,6 +554,7 @@ describe("bullet protocol", () => {
         userAnsem,
         loan: borrowLoan,
         tokenProgram: TOKEN_PROGRAM_ID,
+        bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
@@ -463,7 +569,7 @@ describe("bullet protocol", () => {
     assert.equal((after.borrowed - before.borrowed).toString(), BigInt(borrowAmt).toString());
     assert.equal(after.proto.loanCount.toNumber(), before.proto.loanCount.toNumber() + 1);
     assert.equal(
-      (await bal(connection, collateralVault)).toString(),
+      (await bal(connection, collateralVault, TOKEN_2022_PROGRAM_ID)).toString(),
       loan.collateralBullet.toString()
     );
     assert.isTrue(after.floor >= before.floor, "floor must not decrease on borrow");
@@ -488,6 +594,7 @@ describe("bullet protocol", () => {
           userAnsem,
           loan: loanPda(wallet.publicKey, proto.loanCount),
           tokenProgram: TOKEN_PROGRAM_ID,
+          bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
@@ -499,9 +606,14 @@ describe("bullet protocol", () => {
   it("rejects a borrow with insufficient collateral (ExceedsLtv)", async () => {
     // user2 has ANSEM (for interest) but no BULLET collateral.
     // Give them an empty BULLET ATA so the account constraint passes and LTV check fires.
-    await createAssociatedTokenAccount(connection, wallet.payer, bulletMint, user2.publicKey).catch(
-      () => null
-    );
+    await createAssociatedTokenAccount(
+      connection,
+      wallet.payer,
+      bulletMint,
+      user2.publicKey,
+      undefined,
+      TOKEN_2022_PROGRAM_ID
+    ).catch(() => null);
     const { proto } = await state();
     await expectAnchorError(
       program.methods
@@ -520,6 +632,7 @@ describe("bullet protocol", () => {
           userAnsem: user2Ansem,
           loan: loanPda(user2.publicKey, proto.loanCount),
           tokenProgram: TOKEN_PROGRAM_ID,
+          bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
@@ -532,7 +645,7 @@ describe("bullet protocol", () => {
   it("repays the loan, returns collateral and closes the loan account", async () => {
     const before = await state();
     const loan = await program.account.loan.fetch(borrowLoan);
-    const userBulletBefore = await bal(connection, userBullet);
+    const userBulletBefore = await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID);
 
     await program.methods
       .repay()
@@ -547,6 +660,7 @@ describe("bullet protocol", () => {
         userBullet,
         loan: borrowLoan,
         tokenProgram: TOKEN_PROGRAM_ID,
+      bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
       })
       .rpc();
 
@@ -557,7 +671,7 @@ describe("bullet protocol", () => {
       "total_borrowed decreases by principal"
     );
     assert.equal(
-      ((await bal(connection, userBullet)) - userBulletBefore).toString(),
+      ((await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID)) - userBulletBefore).toString(),
       loan.collateralBullet.toString(),
       "collateral returned to user"
     );
@@ -573,7 +687,7 @@ describe("bullet protocol", () => {
     const before = await state();
     leverageLoan = loanPda(wallet.publicKey, before.proto.loanCount);
     const userAnsemBefore = await bal(connection, userAnsem);
-    const collatBefore = await bal(connection, collateralVault);
+    const collatBefore = await bal(connection, collateralVault, TOKEN_2022_PROGRAM_ID);
 
     const notional = 20 * ONE;
     await program.methods
@@ -592,6 +706,7 @@ describe("bullet protocol", () => {
         userBullet,
         loan: leverageLoan,
         tokenProgram: TOKEN_PROGRAM_ID,
+        bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
@@ -605,7 +720,7 @@ describe("bullet protocol", () => {
     const after = await state();
     // Collateral BULLET is minted straight into the collateral vault.
     assert.equal(
-      ((await bal(connection, collateralVault)) - collatBefore).toString(),
+      ((await bal(connection, collateralVault, TOKEN_2022_PROGRAM_ID)) - collatBefore).toString(),
       loan.collateralBullet.toString()
     );
     assert.equal((after.supply - before.supply).toString(), loan.collateralBullet.toString());
@@ -624,7 +739,7 @@ describe("bullet protocol", () => {
   it("repays a leveraged position: pays the debt and reclaims the minted collateral", async () => {
     const before = await state();
     const loan = await program.account.loan.fetch(leverageLoan);
-    const userBulletBefore = await bal(connection, userBullet);
+    const userBulletBefore = await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID);
     const userAnsemBefore = await bal(connection, userAnsem);
 
     await program.methods
@@ -640,6 +755,7 @@ describe("bullet protocol", () => {
         userBullet,
         loan: leverageLoan,
         tokenProgram: TOKEN_PROGRAM_ID,
+        bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
       })
       .rpc();
 
@@ -649,7 +765,7 @@ describe("bullet protocol", () => {
       "user pays the borrowed principal"
     );
     assert.equal(
-      ((await bal(connection, userBullet)) - userBulletBefore).toString(),
+      ((await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID)) - userBulletBefore).toString(),
       loan.collateralBullet.toString(),
       "user reclaims the minted collateral"
     );
@@ -678,6 +794,7 @@ describe("bullet protocol", () => {
           userBullet: user3Bullet,
           loan: loanPda(user3.publicKey, proto.loanCount),
           tokenProgram: TOKEN_PROGRAM_ID,
+          bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
@@ -707,6 +824,7 @@ describe("bullet protocol", () => {
         userAnsem,
         loan: freshLoan,
         tokenProgram: TOKEN_PROGRAM_ID,
+        bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
@@ -722,7 +840,7 @@ describe("bullet protocol", () => {
           vault,
           collateralVault,
           loan: freshLoan,
-          tokenProgram: TOKEN_PROGRAM_ID,
+          bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
         })
         .rpc(),
       "LoanNotExpired"
@@ -784,9 +902,23 @@ describe("bullet protocol", () => {
           bulletVault: genesisBulletPda(tier),
           systemProgram: SystemProgram.programId,
           tokenProgram: TOKEN_PROGRAM_ID,
+          bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
         });
-      if (authority instanceof Keypair) return builder.signers([authority]).rpc();
-      return builder.rpc();
+      if (authority instanceof Keypair) {
+        await builder.signers([authority]).rpc();
+      } else {
+        await builder.rpc();
+      }
+      await hookProgram.methods
+        .registerExemptAccount()
+        .accountsPartial({
+          authority: wallet.publicKey,
+          mint: bulletMint,
+          hookConfig,
+          tokenAccount: genesisBulletPda(tier),
+        })
+        .rpc()
+        .catch(() => undefined);
     }
 
     function depositTier(
@@ -895,6 +1027,7 @@ describe("bullet protocol", () => {
           tokenVault: genesisTokenPda(TIER0),
           bulletVault: genesisBulletPda(TIER0),
           tokenProgram: TOKEN_PROGRAM_ID,
+          bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
         })
         .rpc();
 
@@ -914,7 +1047,7 @@ describe("bullet protocol", () => {
       const protoAfter = await state();
       assert.isTrue(protoAfter.supply > protoBefore.supply, "protocol supply grows on finalize");
       assert.equal(
-        (await bal(connection, genesisBulletPda(TIER0))).toString(),
+        (await bal(connection, genesisBulletPda(TIER0), TOKEN_2022_PROGRAM_ID)).toString(),
         vaultAcc.totalBullet.toString()
       );
     });
@@ -938,6 +1071,7 @@ describe("bullet protocol", () => {
             userBullet: uBullet,
             userDeposit: userDepositPda(gv, user.publicKey),
             tokenProgram: TOKEN_PROGRAM_ID,
+            bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
             associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           });
@@ -945,12 +1079,12 @@ describe("bullet protocol", () => {
         return builder.rpc();
       };
 
-      const userBulletBefore = await bal(connection, userBullet);
+      const userBulletBefore = await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID);
       await claim(wallet, userBullet);
-      const gainUser = (await bal(connection, userBullet)) - userBulletBefore;
+      const gainUser = (await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID)) - userBulletBefore;
 
       await claim(user2, user2Bullet);
-      const gainUser2 = await bal(connection, user2Bullet);
+      const gainUser2 = await bal(connection, user2Bullet, TOKEN_2022_PROGRAM_ID);
 
       assert.isTrue(gainUser > 0n && gainUser2 > 0n, "both depositors receive BULLET");
       // user deposited 2x → gets ~2x (allow small rounding).
@@ -975,6 +1109,7 @@ describe("bullet protocol", () => {
             userBullet,
             userDeposit: userDepositPda(gv, wallet.publicKey),
             tokenProgram: TOKEN_PROGRAM_ID,
+            bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
             associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
           })

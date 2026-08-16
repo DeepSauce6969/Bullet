@@ -14,6 +14,7 @@ import { Program } from "@coral-xyz/anchor";
 import {
   MINT_SIZE,
   TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
   createInitializeMint2Instruction,
   createAssociatedTokenAccountInstruction,
@@ -30,7 +31,13 @@ import {
 import { startAnchor, Clock, ProgramTestContext } from "solana-bankrun";
 import { assert } from "chai";
 import type { Bullet } from "../target/types/bullet";
+import type { BulletTransferHook } from "../target/types/bullet_transfer_hook";
 import idl from "../target/idl/bullet.json";
+import hookIdl from "../target/idl/bullet_transfer_hook.json";
+
+const HOOK_PROGRAM_ID = new PublicKey(
+  "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
+);
 
 // --- minimal bankrun-backed Anchor provider ---
 
@@ -82,6 +89,7 @@ describe("bullet loan liquidation (bankrun clock warp)", () => {
     const context = await startAnchor(".", [], []);
     const provider = new BankrunProvider(context);
     const program = new Program<Bullet>(idl as any, provider as any);
+    const hookProgram = new Program<BulletTransferHook>(hookIdl as any, provider as any);
     const banks = context.banksClient;
     const payer = context.payer;
 
@@ -145,7 +153,21 @@ describe("bullet loan liquidation (bankrun clock warp)", () => {
       ),
     ]);
 
-    const userBullet = getAssociatedTokenAddressSync(bulletMint, payer.publicKey);
+    const userBullet = getAssociatedTokenAddressSync(
+      bulletMint,
+      payer.publicKey,
+      false,
+      TOKEN_2022_PROGRAM_ID
+    );
+
+    const hookConfig = PublicKey.findProgramAddressSync(
+      [Buffer.from("hook_config"), bulletMint.toBuffer()],
+      HOOK_PROGRAM_ID
+    )[0];
+    const extraAccountMetaList = PublicKey.findProgramAddressSync(
+      [Buffer.from("extra-account-metas"), bulletMint.toBuffer()],
+      HOOK_PROGRAM_ID
+    )[0];
 
     await program.methods
       .initialize(new anchor.BN(2_500 * ONE), feeRecipient.publicKey)
@@ -157,9 +179,39 @@ describe("bullet loan liquidation (bankrun clock warp)", () => {
         vault,
         polVault,
         collateralVault,
+        transferHookProgram: HOOK_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID,
+        token2022Program: TOKEN_2022_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+      })
+      .rpc();
+
+    await hookProgram.methods
+      .initializeConfig(500)
+      .accountsPartial({
+        authority: payer.publicKey,
+        mint: bulletMint,
+        hookConfig,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+    await hookProgram.methods
+      .initializeExtraAccountMetaList()
+      .accountsPartial({
+        payer: payer.publicKey,
+        mint: bulletMint,
+        extraAccountMetaList,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+    await hookProgram.methods
+      .registerExemptAccount()
+      .accountsPartial({
+        authority: payer.publicKey,
+        mint: bulletMint,
+        hookConfig,
+        tokenAccount: collateralVault,
       })
       .rpc();
 
@@ -178,6 +230,7 @@ describe("bullet loan liquidation (bankrun clock warp)", () => {
         userAnsem,
         userBullet,
         tokenProgram: TOKEN_PROGRAM_ID,
+        bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
@@ -224,6 +277,7 @@ describe("bullet loan liquidation (bankrun clock warp)", () => {
           collateralVault,
           loan,
           tokenProgram: TOKEN_PROGRAM_ID,
+          bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
         })
         .rpc();
     }
@@ -281,6 +335,7 @@ describe("bullet loan liquidation (bankrun clock warp)", () => {
         userAnsem: s.userAnsem,
         loan,
         tokenProgram: TOKEN_PROGRAM_ID,
+        bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
@@ -322,6 +377,7 @@ describe("bullet loan liquidation (bankrun clock warp)", () => {
         userBullet: s.userBullet,
         loan,
         tokenProgram: TOKEN_PROGRAM_ID,
+        bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
@@ -363,6 +419,7 @@ describe("bullet loan liquidation (bankrun clock warp)", () => {
         userBullet: s.userBullet,
         loan,
         tokenProgram: TOKEN_PROGRAM_ID,
+        bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
@@ -386,6 +443,7 @@ describe("bullet loan liquidation (bankrun clock warp)", () => {
           userBullet: s.userBullet,
           loan,
           tokenProgram: TOKEN_PROGRAM_ID,
+          bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
         })
         .rpc();
     } catch (e: unknown) {
