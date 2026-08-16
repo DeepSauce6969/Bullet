@@ -59,6 +59,12 @@ pub struct Initialize<'info> {
     )]
     pub collateral_vault: UncheckedAccount<'info>,
 
+    /// CHECK: transfer hook program id.
+    #[account(
+        constraint = transfer_hook_program.key() == TRANSFER_HOOK_PROGRAM_ID @ BulletError::InvalidTransferHook
+    )]
+    pub transfer_hook_program: UncheckedAccount<'info>,
+
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
     pub token_2022_program: Program<'info, Token2022>,

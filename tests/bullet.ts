@@ -13,9 +13,14 @@ import {
 import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram } from "@solana/web3.js";
 import { assert } from "chai";
 import type { Bullet } from "../target/types/bullet";
+import type { BulletTransferHook } from "../target/types/bullet_transfer_hook";
 
 /** Reference only — localnet uses a mock mint. */
 export const ANSEM_MAINNET = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
+
+const HOOK_PROGRAM_ID = new PublicKey(
+  "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
+);
 
 const ONE = 1_000_000; // 1 token (6 decimals)
 const MAX_SUPPLY = new anchor.BN(2_500 * ONE);
@@ -109,6 +114,7 @@ describe("bullet protocol", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
   const program = anchor.workspace.Bullet as Program<Bullet>;
+  const hookProgram = anchor.workspace.BulletTransferHook as Program<BulletTransferHook>;
   const connection = provider.connection;
   const wallet = provider.wallet as anchor.Wallet;
 
@@ -121,6 +127,9 @@ describe("bullet protocol", () => {
   let vault: PublicKey;
   let polVault: PublicKey;
   let collateralVault: PublicKey;
+
+  let hookConfig: PublicKey;
+  let extraAccountMetaList: PublicKey;
 
   let userAnsem: PublicKey;
   let userBullet: PublicKey;
@@ -167,7 +176,43 @@ describe("bullet protocol", () => {
     return ata;
   }
 
-  async function setupBulletAtas() {
+  async function setupTransferHook() {
+    hookConfig = PublicKey.findProgramAddressSync(
+      [Buffer.from("hook_config"), bulletMint.toBuffer()],
+      HOOK_PROGRAM_ID
+    )[0];
+    extraAccountMetaList = PublicKey.findProgramAddressSync(
+      [Buffer.from("extra-account-metas"), bulletMint.toBuffer()],
+      HOOK_PROGRAM_ID
+    )[0];
+    await hookProgram.methods
+      .initializeConfig(500)
+      .accountsPartial({
+        authority: wallet.publicKey,
+        mint: bulletMint,
+        hookConfig,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+    await hookProgram.methods
+      .initializeExtraAccountMetaList()
+      .accountsPartial({
+        payer: wallet.publicKey,
+        mint: bulletMint,
+        extraAccountMetaList,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+    await hookProgram.methods
+      .registerExemptAccount()
+      .accountsPartial({
+        authority: wallet.publicKey,
+        mint: bulletMint,
+        hookConfig,
+        tokenAccount: collateralVault,
+      })
+      .rpc();
+
     for (const owner of [wallet.publicKey, user2.publicKey, user3.publicKey]) {
       await ensureBulletAta(owner);
     }
@@ -322,6 +367,7 @@ describe("bullet protocol", () => {
         vault,
         polVault,
         collateralVault,
+        transferHookProgram: HOOK_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID,
         token2022Program: TOKEN_2022_PROGRAM_ID,
@@ -329,7 +375,7 @@ describe("bullet protocol", () => {
       })
       .rpc();
 
-    await setupBulletAtas();
+    await setupTransferHook();
 
     const { proto } = await state();
     assert.equal(proto.maxSupply.toString(), MAX_SUPPLY.toString());
@@ -353,6 +399,7 @@ describe("bullet protocol", () => {
           vault,
           polVault,
           collateralVault,
+          transferHookProgram: HOOK_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
           tokenProgram: TOKEN_PROGRAM_ID,
           token2022Program: TOKEN_2022_PROGRAM_ID,
@@ -399,16 +446,7 @@ describe("bullet protocol", () => {
     const expectedBribe = (fee * FEE_BRIBE_BPS) / BPS_DENOM;
     const expectedVault = BigInt(deposit) - expectedPol - expectedBribe;
 
-    const bulletAta = await ensureBulletAta(wallet.publicKey);
-    const userBulletBal = await withValidatorRetry(
-      async () => {
-        const b = await bal(connection, bulletAta, TOKEN_2022_PROGRAM_ID);
-        if (b < expectedBullet) throw new Error("balance not ready");
-        return b;
-      },
-      "post-mint BULLET balance"
-    );
-    assert.equal(userBulletBal.toString(), expectedBullet.toString());
+    assert.equal((await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID)).toString(), expectedBullet.toString());
     assert.equal((await bal(connection, polVault)).toString(), expectedPol.toString());
     assert.equal((await bal(connection, feeRecipientAta)).toString(), expectedBribe.toString());
     assert.equal((await bal(connection, vault)).toString(), expectedVault.toString());
@@ -872,6 +910,16 @@ describe("bullet protocol", () => {
       } else {
         await builder.rpc();
       }
+      await hookProgram.methods
+        .registerExemptAccount()
+        .accountsPartial({
+          authority: wallet.publicKey,
+          mint: bulletMint,
+          hookConfig,
+          tokenAccount: genesisBulletPda(tier),
+        })
+        .rpc()
+        .catch(() => undefined);
     }
 
     function depositTier(
