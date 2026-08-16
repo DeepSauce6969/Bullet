@@ -23,6 +23,14 @@ The committed `Cargo.lock` pins `edition2024` crates (e.g. `zeroize_derive 1.5.0
 - `anchor build` (0.31.1) force-activates Solana `2.1.0`, whose bundled `cargo-build-sbf` uses platform-tools **v1.43 (cargo 1.79)** — too old. To avoid fighting this on every build, the `2.1.0` release dir is symlinked to the `3.1.2` release: `~/.local/share/solana/install/releases/2.1.0/solana-release -> ../3.1.2/solana-release`. This makes anchor's forced `2.1.0` resolve to v1.52 tools, so plain `anchor build` and `anchor test` work. Keep this symlink; if it's ever lost, `agave-install init 3.1.2` and re-create it (original is at `2.1.0/solana-release.orig`).
 - First SBF build downloads platform-tools v1.52 into `~/.cache/solana/` (large, one-time). It is already cached here.
 
+### BULLET Token-2022 + transfer hook (DEX tax)
+
+- BULLET is a **Token-2022** mint with `TransferFeeConfig` (default **500 bps / 5%**, adjustable via fee authority) and `TransferHook` pointing at `programs/bullet-transfer-hook` (`DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp`).
+- The hook **blocks wallet-to-wallet** transfers; only transfers involving a **registered DEX pool ATA** or an **exempt** protocol vault pass. Protocol paths use **mint/burn** (not `transfer`) to avoid taxing mint/burn/borrow/leverage.
+- After deploy, register each Raydium/Jupiter BULLET pool ATA via `register_dex_pool` and exempt vaults (`collateral_vault`, genesis `bullet_vault`, etc.) via `register_exempt_account`.
+- Token-2022 token accounts need `TransferFeeAmount` + `TransferHookAccount` (+ optional `ImmutableOwner`) extensions — see `programs/bullet/src/token2022_mint.rs`.
+- Local tests: `npm run test:localnet` (includes `tests/transfer_hook.ts`). Some `tests/bullet.ts` cases can be flaky on a cold validator; re-run if mint balance reads as zero right after init.
+
 ### Running the localnet tests
 
 - `anchor test` uses `[provider] cluster = "Devnet"` from `Anchor.toml`, so plain `anchor test` targets **devnet**. For the local smoke tests (initialize/mint/borrow) run against a local validator instead:
