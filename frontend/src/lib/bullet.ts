@@ -17,24 +17,24 @@ import {
 } from "@solana/web3.js";
 
 export const PROGRAM_ID = new PublicKey(
-  "Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3"
+  "Gz7TX19wG7y4k8qCHt5eWQEpUMn6ALosV27PsWJDaAzJ"
 );
 /** Devnet mock Ansem (mainnet: 9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump). */
 export const ANSEM_MINT = new PublicKey(
-  "GCqc8CToxTNK97h6Zc72V8DfmHJKeEPFnWg2niDP7CgB"
+  "6Pk6iwk927RAypbWhVwCBi6nH8Heo7Zpxkv9EvrHJWnA"
 );
 export const PROTOCOL_PDA = new PublicKey(
-  "GrzacYkUsrhctr8GaWAzTrVbtdM4a6ouL3D48fY533N5"
+  "7DWTgWAZxKaTEskYhqNV5Vd1kjFeYg6H2df7c8tpaubc"
 );
 export const BULLET_MINT = new PublicKey(
-  "5mn87veZKojAk8kviARtXehqvtoFsdb4pv1V284WfZGb"
+  "HcHjbgNsXHe6BdTK1SoPaeEF71vpn56MNC6NeE3Ktppn"
 );
-export const VAULT = new PublicKey("4B7VmCqJs5yLE5juXVvDuTndeHyaCktGfhVsRZMPDwaF");
+export const VAULT = new PublicKey("7gT1TiQqj6DZzJQN4UE51VTX4GX7GEdX4sEfKqSaigC5");
 export const POL_VAULT = new PublicKey(
-  "C3zBMAJrZNnsoLLBQzV3V9SV9btdLzQ3HJ3VpabwspD5"
+  "Bvfik7TTcgiiHcvgmKtT8B3oUPoceinrExswbF9EpvEu"
 );
 export const COLLATERAL_VAULT = new PublicKey(
-  "Aoe2U698NZxy94exyptDcVx38EoLNLhQPW1YdPUiE8Ey"
+  "2JmVMseUyEMoRXTJscD7dzJ7d2iSZqfNGg32yM7CURYM"
 );
 export const FEE_RECIPIENT = new PublicKey(
   "1zrYVfhRhMNkmnSBazaKKzRwAc4GLyP3Kew9K4SCnMo"

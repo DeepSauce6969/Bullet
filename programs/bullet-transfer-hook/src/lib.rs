@@ -13,7 +13,7 @@ pub mod state;
 use errors::HookError;
 use state::*;
 
-declare_id!("DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp");
+declare_id!("GJdqUFKpUHwLjVtcZMDnZDP5Mn8o9rsbiPLvUsg47BjY");
 
 #[program]
 pub mod bullet_transfer_hook {

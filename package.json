@@ -12,7 +12,8 @@
     "upgrade:devnet": "bash scripts/upgrade-devnet.sh",
     "redeploy:devnet": "bash scripts/redeploy-devnet.sh",
     "sync:frontend": "tsx scripts/sync-frontend-addresses.ts",
-    "set-max-supply": "tsx scripts/set-max-supply-devnet.ts"
+    "set-max-supply": "tsx scripts/set-max-supply-devnet.ts",
+    "setup:hook": "npx tsx scripts/setup-transfer-hook-devnet.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",

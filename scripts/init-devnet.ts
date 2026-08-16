@@ -27,9 +27,9 @@ import * as os from "os";
 import * as crypto from "crypto";
 
 // Patched by redeploy-devnet.sh after keys sync
-const PROGRAM_ID = new PublicKey("Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3");
+const PROGRAM_ID = new PublicKey("Gz7TX19wG7y4k8qCHt5eWQEpUMn6ALosV27PsWJDaAzJ");
 const TRANSFER_HOOK_PROGRAM_ID = new PublicKey(
-  "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
+  "GJdqUFKpUHwLjVtcZMDnZDP5Mn8o9rsbiPLvUsg47BjY"
 );
 const RPC = "https://api.devnet.solana.com";
 const MAX_SUPPLY = BigInt(5_000_000) * BigInt(1_000_000); // 5_000_000 * 1e6

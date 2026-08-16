@@ -30,14 +30,14 @@ The committed `Cargo.lock` pins `edition2024` crates (e.g. `zeroize_derive 1.5.0
 - `TransferFeeConfig` cannot distinguish buy/sell vs P2P on its own — the hook provides the DEX gate; the fee applies on transfers that pass the gate.
 - Protocol paths use **mint/burn** (not `transfer`) so mint/burn/borrow/leverage are not taxed.
 - Mint has **no freeze authority** (`None`) for Meteora DLMM permissionless compatibility.
-- Hook program id: `DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp`
+- Live **devnet** ids are in `deployed-devnet.json` (current: bullet `Gz7TX19…`, hook `GJdqUFK…`). Committed `declare_id!` / `Anchor.toml` track those after redeploy.
 - Local tests: `npm run test:localnet` (includes `tests/transfer_hook.ts`).
 
 ### Running the localnet tests
 
 - `anchor test` uses `[provider] cluster = "Devnet"` from `Anchor.toml`, so plain `anchor test` targets **devnet**. For the local smoke tests (initialize/mint/borrow) run against a local validator instead:
   `anchor test --provider.cluster localnet`
-- Localnet requires the program's deploy address to equal `declare_id!` in `programs/bullet/src/lib.rs` (and the hook's `declare_id!` in `programs/bullet-transfer-hook/src/lib.rs`). Matching program keypairs are git-ignored. Fresh `target/deploy/*-keypair.json` files won't match the committed ids (`Dae3D7…` / `DYEK…`). To run localnet tests: generate keypairs if missing, temporarily `anchor keys sync` (updates both `declare_id!`s + `Anchor.toml`), then `anchor test --provider.cluster localnet`. `TRANSFER_HOOK_PROGRAM_ID` in the bullet program tracks `bullet_transfer_hook::ID`, so it follows the synced hook id automatically. **Revert those tracked-file edits afterward** (`git checkout Anchor.toml programs/bullet/src/lib.rs programs/bullet-transfer-hook/src/lib.rs`) — do not commit them.
+- Localnet requires the program's deploy address to equal `declare_id!` in `programs/bullet/src/lib.rs` (and the hook's `declare_id!` in `programs/bullet-transfer-hook/src/lib.rs`). Matching program keypairs are git-ignored. Fresh `target/deploy/*-keypair.json` files won't match the committed ids. To run localnet tests: generate keypairs if missing, temporarily `anchor keys sync` (updates both `declare_id!`s + `Anchor.toml`), then `anchor test --provider.cluster localnet`. `TRANSFER_HOOK_PROGRAM_ID` in the bullet program tracks `bullet_transfer_hook::ID`, so it follows the synced hook id automatically. **Revert those tracked-file edits afterward** (`git checkout Anchor.toml programs/bullet/src/lib.rs programs/bullet-transfer-hook/src/lib.rs`) — do not commit them.
 - A provider wallet at `~/.config/solana/id.json` is required; if missing, `solana-keygen new -o ~/.config/solana/id.json`. The local validator funds it automatically.
 
 ### Frontend
@@ -53,9 +53,9 @@ The committed `Cargo.lock` pins `edition2024` crates (e.g. `zeroize_derive 1.5.0
 
 ### Devnet leverage / program upgrade / redeploy
 
-- Old program `4PTGwC7…` (authority `5RE5a…`) still has the buggy leverage bytecode. If that authority key is lost, do a **fresh redeploy** instead of upgrade.
-- Fresh redeploy (new program id, new PDAs, new mock Ansem): fund deployer `~/.config/solana/id.json` with ~5 SOL on devnet, then `npm run redeploy:devnet` (`scripts/redeploy-devnet.sh`). This runs keys sync → build → deploy → init → genesis → `sync-frontend-addresses`.
-- After redeploy, commit updated `deployed-devnet.json`, `programs/bullet/src/lib.rs` `declare_id!`, `Anchor.toml`, and `frontend/src/lib/bullet.ts` addresses.
+- Fresh Token-2022 redeploy (new bullet + hook program ids, new PDAs, new mock Ansem): fund deployer `~/.config/solana/id.json` with **~8+ SOL** on devnet, then `npm run redeploy:devnet` (`scripts/redeploy-devnet.sh`). Flow: new bullet keypair → keys sync → build → deploy **hook then bullet** → `init-devnet` → `init-genesis-vaults` → `setup-transfer-hook-devnet` (800 bps config, extra metas, exempt collateral + genesis bullet vaults) → `sync-frontend-addresses`.
+- The script always generates a **new** `bullet-keypair.json` (closed program ids cannot be reused). Hook keypair is reused if present.
+- After redeploy, commit updated `deployed-devnet.json`, both `declare_id!`s, `Anchor.toml`, and `frontend/src/lib/bullet.ts` / faucet addresses.
 - Keep the deployer seed phrase **out of git** (`~/.config/solana/DEPLOYER_SEED.txt`, gitignored). Store it as a Cursor secret for future agents.
-- Smoke check: `npm run simulate:leverage` (expect `"err": null`).
-- In-place upgrade of `4PTGwC7…` only if you recover the `5RE5a…` keypair: `npm run upgrade:devnet`.
+- Smoke check: `npm run simulate:leverage` (expect `"err": null`). Confirm BULLET mint owner is `TokenzQd…` (Token-2022).
+- In-place upgrade of the **current** program: `solana program deploy target/deploy/bullet.so --program-id <current> --upgrade-authority ~/.config/solana/id.json` (do **not** use the stale `upgrade-devnet.sh` which still targets `4PTGwC7…`).

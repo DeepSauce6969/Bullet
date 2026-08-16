@@ -10,7 +10,7 @@ import os from "os";
 import path from "path";
 
 const ANSEM_MINT = new PublicKey(
-  "GCqc8CToxTNK97h6Zc72V8DfmHJKeEPFnWg2niDP7CgB"
+  "6Pk6iwk927RAypbWhVwCBi6nH8Heo7Zpxkv9EvrHJWnA"
 );
 const AMOUNT = BigInt(10_000_000_000); // 10_000 mock Ansem
 

@@ -28,13 +28,11 @@ fi
 
 echo ""
 echo "=== Sync program ids (bullet + bullet_transfer_hook) ==="
-# Ensure keypairs exist
 mkdir -p target/deploy
-if [[ ! -f target/deploy/bullet-keypair.json ]]; then
-  solana-keygen new -o target/deploy/bullet-keypair.json --no-bip39-passphrase --force
-fi
+# Always mint a NEW bullet keypair — closed program ids cannot be redeployed.
+solana-keygen new -o target/deploy/bullet-keypair.json --no-bip39-passphrase --force >/dev/null
 if [[ ! -f target/deploy/bullet_transfer_hook-keypair.json ]]; then
-  solana-keygen new -o target/deploy/bullet_transfer_hook-keypair.json --no-bip39-passphrase --force
+  solana-keygen new -o target/deploy/bullet_transfer_hook-keypair.json --no-bip39-passphrase --force >/dev/null
 fi
 
 anchor keys sync

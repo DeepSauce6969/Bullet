@@ -1,47 +1,51 @@
 {
   "cluster": "devnet",
-  "programId": "Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3",
-  "ansemMint": "GCqc8CToxTNK97h6Zc72V8DfmHJKeEPFnWg2niDP7CgB",
-  "note": "Devnet mock Ansem — mainnet uses 9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
-  "protocol": "GrzacYkUsrhctr8GaWAzTrVbtdM4a6ouL3D48fY533N5",
-  "bulletMint": "5mn87veZKojAk8kviARtXehqvtoFsdb4pv1V284WfZGb",
-  "vault": "4B7VmCqJs5yLE5juXVvDuTndeHyaCktGfhVsRZMPDwaF",
-  "polVault": "C3zBMAJrZNnsoLLBQzV3V9SV9btdLzQ3HJ3VpabwspD5",
-  "collateralVault": "Aoe2U698NZxy94exyptDcVx38EoLNLhQPW1YdPUiE8Ey",
+  "programId": "Gz7TX19wG7y4k8qCHt5eWQEpUMn6ALosV27PsWJDaAzJ",
+  "transferHookProgramId": "GJdqUFKpUHwLjVtcZMDnZDP5Mn8o9rsbiPLvUsg47BjY",
+  "ansemMint": "6Pk6iwk927RAypbWhVwCBi6nH8Heo7Zpxkv9EvrHJWnA",
+  "note": "Devnet mock Ansem — mainnet uses 9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump. BULLET is Token-2022 with DEX transfer hook.",
+  "protocol": "7DWTgWAZxKaTEskYhqNV5Vd1kjFeYg6H2df7c8tpaubc",
+  "bulletMint": "HcHjbgNsXHe6BdTK1SoPaeEF71vpn56MNC6NeE3Ktppn",
+  "vault": "7gT1TiQqj6DZzJQN4UE51VTX4GX7GEdX4sEfKqSaigC5",
+  "polVault": "Bvfik7TTcgiiHcvgmKtT8B3oUPoceinrExswbF9EpvEu",
+  "collateralVault": "2JmVMseUyEMoRXTJscD7dzJ7d2iSZqfNGg32yM7CURYM",
   "feeRecipient": "1zrYVfhRhMNkmnSBazaKKzRwAc4GLyP3Kew9K4SCnMo",
-  "feeAta": "E48SRMG9P4niucLsXBhwj42bXsGQd84xvk4AN7WWxtqL",
-  "initializeTx": "5Nh9MdoUozgVA9MJBY6feUqZaBBMm5BfBiiQt3WBv6Hsog27A1EMfWWe5Y4GukEdbaJJdk17CbXHivrFEqVLhnht",
-  "explorer": "https://explorer.solana.com/address/Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3?cluster=devnet",
+  "feeAta": "ERjbC5gNHN8pePNGjT8jnZTPLxKM45ZEZ1epDnUHeP46",
+  "initializeTx": "7Ri22udUkQSX2Q8ufZFHf8NQqvhGSxE2U3QWyC1zHs222MJyVrnJPZ1yx68BK372nVimXzzGgnjdZVnXBr54G1N",
+  "explorer": "https://explorer.solana.com/address/Gz7TX19wG7y4k8qCHt5eWQEpUMn6ALosV27PsWJDaAzJ?cluster=devnet",
   "genesisVaults": {
     "VIP Genesis": {
       "tier": 0,
-      "genesisVault": "3zsPiSTFUazTgvaf6WN74rJ3ezmnmCefPkoi91Pznxur",
-      "tokenVault": "5Vd9U7YAGJ4xgy7MG52ogjqdUbbDVZMGzkS2ndR938yi",
-      "bulletVault": "BufFsR669Uk9rXfdbhRbtBxKzuBfFLZrE91HfdTm7XZL",
+      "genesisVault": "FW5exaZg3r76M6qjUaHvcyCCtMniZtknZ4ApTuhP6PWH",
+      "tokenVault": "9FXz1spRdYvqd5UBFrCBb2WyKnkXFBSW4mi2igSBDkEi",
+      "bulletVault": "HskW76QCJCizQtygwic6kBPrLiY7dku2p1imGD3zimPH",
       "feeBps": 0,
       "depositCap": 250000,
       "maxAllocation": 25000,
-      "initTx": "4JDgo9ak7qoAvHwY56U4FZcyAcVn9doMR3ragPHR7y4vKqdo5N98oXZGsrpH9YrWrPcQfLJvyUYSEFNjBWwW1kKX"
+      "initTx": "2GZfnJpXrRyKf8v7YJXjgSBMTENwVxjpyNu3gzFhrZE7Txnc2uvF3ZCQ3HzkhhAV7hawPgrnx9tMfYtCyNnrnhz7"
     },
     "Community": {
       "tier": 1,
-      "genesisVault": "B3z86GdVEkgwA5er4juwwS99QKbbvzkXB5qes2fFgyVy",
-      "tokenVault": "E736niyXJXo9uLLtefDcvXkhW1Ww9A3FJGr2zRjPWAuV",
-      "bulletVault": "5XkyWeCVh529EK3ruKorbTY1qXut4AXW3bUkb7kpp7Zi",
-      "feeBps": 100,
+      "genesisVault": "GMy54VtZ2E1hLgqYLJ4EjWhSrVwWoyotrBHD3XhUv62g",
+      "tokenVault": "51pQrRam8yRhFFEqLzvWhnxC96StBNfvZpFN6QfBRZUB",
+      "bulletVault": "9neh371Lt6waN9aGZ6FtRwhDmBWKr4NghvMU9Z3wLNEp",
+      "feeBps": 250,
       "depositCap": 500000,
       "maxAllocation": 10000,
-      "initTx": "4h8p4j89B9Xr4ZCGbMJzHa25PsWy9hZcrm6njpmzecp6TZG38Z4HPHkAW32KkN4aCbirCNgaGEdReF7mFmgxVm8M"
+      "initTx": "Dw4UwvZUxEfCkuJicPgRdoBS292ksz48DHwGVcTRA4FWaA2ijsUY9ztmkxUsDq9HhB65WHN386rZgchTgS1hMt4"
     },
     "Public": {
       "tier": 2,
-      "genesisVault": "CuxkK3PNGTjFCtJEqxkpGAa7e6c3DnVdUPoJ2XnSSrPG",
-      "tokenVault": "5zrLANkPmhu3amAuQNGhfUxCtWb7WPTwzqxfGm67DC7A",
-      "bulletVault": "4RKWCyZhysFkahi6yAFYdTfsL3dNek5wWJxz5nM3iDdD",
-      "feeBps": 150,
+      "genesisVault": "8YeLGH7t47CNNQHuGJDKZnSu5b5u8p2KcMkritif9Uoh",
+      "tokenVault": "D59FkUba9eeUCfyGKkvWJ562h5Sz1s5kKcFCc3zV1qfi",
+      "bulletVault": "2sWvv33qYnwABZ4KSixtddUec13d3KERPUY2AQDzuPaP",
+      "feeBps": 400,
       "depositCap": 1000000,
       "maxAllocation": 5000,
-      "initTx": "67HmrPXM2QZkWXjFBFsxtagEMYwgHsBQWS1QkZyM2TgfZ84sdX9cc1Rp89WVBqsn6whg8yHwFwfD3cu1qN8ydMR8"
+      "initTx": "3jBnTDT4NJgX5k5ZgejVW73Zi8mdskD8LhxHLJ6ni8cyhucwFmkpw16D9mz97WJMKQzdiGuQeyGSHkgwzBdDu8ak"
     }
-  }
+  },
+  "hookConfig": "CwZ7aBovSvyENtYQ36GKg3JqimKBL4YuqoKjynMRYMug",
+  "extraAccountMetaList": "3VoRViQkwdLgHVKYjtuk9jofy9kyQxeFmpxUVksQivWZ",
+  "dexTransferTaxBps": 800
 }

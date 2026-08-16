@@ -5,17 +5,17 @@ anchor_version = "0.31.1"
 resolution = true
 skip-lint = false
 
-[programs.localnet]
-bullet = "Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3"
-bullet_transfer_hook = "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
-
 [programs.devnet]
-bullet = "Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3"
-bullet_transfer_hook = "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
+bullet = "Gz7TX19wG7y4k8qCHt5eWQEpUMn6ALosV27PsWJDaAzJ"
+bullet_transfer_hook = "GJdqUFKpUHwLjVtcZMDnZDP5Mn8o9rsbiPLvUsg47BjY"
+
+[programs.localnet]
+bullet = "Gz7TX19wG7y4k8qCHt5eWQEpUMn6ALosV27PsWJDaAzJ"
+bullet_transfer_hook = "GJdqUFKpUHwLjVtcZMDnZDP5Mn8o9rsbiPLvUsg47BjY"
 
 [programs.mainnet]
-bullet = "Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3"
-bullet_transfer_hook = "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
+bullet = "Gz7TX19wG7y4k8qCHt5eWQEpUMn6ALosV27PsWJDaAzJ"
+bullet_transfer_hook = "GJdqUFKpUHwLjVtcZMDnZDP5Mn8o9rsbiPLvUsg47BjY"
 
 [registry]
 url = "https://api.apr.dev"

@@ -10,7 +10,7 @@ pub mod token2022_mint;
 
 pub use ix_accounts::*;
 
-declare_id!("Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3");
+declare_id!("Gz7TX19wG7y4k8qCHt5eWQEpUMn6ALosV27PsWJDaAzJ");
 
 /// Bullet protocol — Ansem-backed up-only floor token.
 /// Up-only floor mechanics without Uniswap v4 hooks:

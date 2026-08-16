@@ -20,7 +20,7 @@ import * as path from "path";
 import * as os from "os";
 
 // Patched by redeploy-devnet.sh after keys sync
-const PROGRAM_ID = new PublicKey("Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3");
+const PROGRAM_ID = new PublicKey("Gz7TX19wG7y4k8qCHt5eWQEpUMn6ALosV27PsWJDaAzJ");
 const RPC = "https://api.devnet.solana.com";
 
 const TIERS = [
