@@ -5,40 +5,73 @@ import {
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   createAssociatedTokenAccount,
-  createTransferCheckedWithTransferHookInstruction,
   getAssociatedTokenAddressSync,
-  getMintLen,
-  getTransferHook,
-  harvestWithheldTokensToMint,
-  ExtensionType,
-  createInitializeTransferFeeConfigInstruction,
-  createInitializeTransferHookInstruction,
-  createInitializeMintInstruction,
-  createMintToInstruction,
-  createAccount,
   getOrCreateAssociatedTokenAccount,
   transferCheckedWithTransferHook,
-  transferCheckedWithFeeAndTransferHook,
+  createTransferCheckedWithFeeAndTransferHookInstruction,
 } from "@solana/spl-token";
-import { Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import { assert } from "chai";
 import type { Bullet } from "../target/types/bullet";
 import type { BulletTransferHook } from "../target/types/bullet_transfer_hook";
 
-const HOOK_PROGRAM_ID = new PublicKey(
-  "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
-);
 const ONE = 1_000_000;
 const DEX_TAX_BPS = 800; // 8%
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 async function bal(
   connection: anchor.web3.Connection,
   ata: PublicKey,
-  tokenProgram: PublicKey = TOKEN_2022_PROGRAM_ID
+  tokenProgram: PublicKey = TOKEN_2022_PROGRAM_ID,
+  retries = 20,
+  allowMissing = false
 ): Promise<bigint> {
   const { getAccount } = await import("@solana/spl-token");
-  const acc = await getAccount(connection, ata, "confirmed", tokenProgram).catch(() => null);
-  return acc ? acc.amount : 0n;
+  let lastErr: unknown;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const rpc = await connection.getTokenAccountBalance(ata, "confirmed");
+      if (rpc?.value?.amount != null) return BigInt(rpc.value.amount);
+    } catch (e) {
+      lastErr = e;
+    }
+    try {
+      const acc = await getAccount(connection, ata, "confirmed", tokenProgram);
+      return acc.amount;
+    } catch (e) {
+      lastErr = e;
+    }
+    try {
+      const info = await connection.getAccountInfo(ata, "confirmed");
+      if (info?.data && info.data.length >= 72) {
+        return Buffer.from(info.data).readBigUInt64LE(64);
+      }
+    } catch (e) {
+      lastErr = e;
+    }
+    await sleep(150 + i * 50);
+  }
+  if (allowMissing) return 0n;
+  throw new Error(`bal(${ata.toBase58()}) failed after ${retries}: ${String(lastErr)}`);
+}
+
+async function waitBal(
+  connection: anchor.web3.Connection,
+  ata: PublicKey,
+  pred: (n: bigint) => boolean,
+  tokenProgram: PublicKey = TOKEN_2022_PROGRAM_ID,
+  retries = 24
+): Promise<bigint> {
+  let last = 0n;
+  for (let i = 0; i < retries; i++) {
+    last = await bal(connection, ata, tokenProgram, 4, true);
+    if (pred(last)) return last;
+    await sleep(200 + i * 50);
+  }
+  throw new Error(`waitBal(${ata.toBase58()}) last=${last} after ${retries}`);
 }
 
 describe("bullet transfer hook (DEX tax)", () => {
@@ -46,6 +79,7 @@ describe("bullet transfer hook (DEX tax)", () => {
   anchor.setProvider(provider);
   const bullet = anchor.workspace.Bullet as Program<Bullet>;
   const hook = anchor.workspace.BulletTransferHook as Program<BulletTransferHook>;
+  const HOOK_PROGRAM_ID = hook.programId;
   const connection = provider.connection;
   const wallet = provider.wallet as anchor.Wallet;
 
@@ -198,7 +232,7 @@ describe("bullet transfer hook (DEX tax)", () => {
       .rpc();
     }
 
-    const bulletBal = await bal(connection, userBullet);
+    const bulletBal = await waitBal(connection, userBullet, (n) => n > 0n);
     assert.isTrue(bulletBal > 0n);
   });
 
@@ -257,7 +291,7 @@ describe("bullet transfer hook (DEX tax)", () => {
       TOKEN_2022_PROGRAM_ID
     );
 
-    await hook.methods
+    const regSig = await hook.methods
       .registerDexPool()
       .accountsPartial({
         authority: wallet.publicKey,
@@ -266,6 +300,7 @@ describe("bullet transfer hook (DEX tax)", () => {
         poolTokenAccount: dexPoolBullet,
       })
       .rpc();
+    await connection.confirmTransaction(regSig, "confirmed");
 
     const cfg = await hook.account.hookConfig.fetch(hookConfig);
     assert.isTrue(
@@ -286,25 +321,38 @@ describe("bullet transfer hook (DEX tax)", () => {
     assert.isTrue(sender.amount >= 100n * BigInt(ONE), "sender needs BULLET");
 
     const amount = 100n * BigInt(ONE);
-    const poolBefore = await bal(connection, dexPoolBullet);
+    const poolBefore = await bal(connection, dexPoolBullet, TOKEN_2022_PROGRAM_ID, 8, true);
     const fee = (amount * BigInt(DEX_TAX_BPS)) / 10000n;
 
-    await transferCheckedWithFeeAndTransferHook(
+    // Build ix explicitly so we can assert the resolved hook_config matches registration.
+    const ix = await createTransferCheckedWithFeeAndTransferHookInstruction(
       connection,
-      wallet.payer,
       sender.address,
       bulletMint,
       dexPoolBullet,
-      wallet.payer,
+      wallet.publicKey,
       amount,
       6,
       fee,
       [],
-      { commitment: "confirmed" },
+      "confirmed",
       TOKEN_2022_PROGRAM_ID
     );
+    assert.isTrue(
+      ix.keys.some((k) => k.pubkey.equals(hookConfig)),
+      `transfer ix must include hook_config ${hookConfig.toBase58()}`
+    );
 
-    const poolAfter = await bal(connection, dexPoolBullet);
+    const tx = new Transaction().add(ix);
+    await sendAndConfirmTransaction(connection, tx, [wallet.payer], {
+      commitment: "confirmed",
+    });
+
+    const poolAfter = await waitBal(
+      connection,
+      dexPoolBullet,
+      (n) => n - poolBefore === amount - fee
+    );
     const received = poolAfter - poolBefore;
     assert.equal(received, amount - fee);
   });

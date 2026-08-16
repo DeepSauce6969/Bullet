@@ -35,9 +35,8 @@ import type { BulletTransferHook } from "../target/types/bullet_transfer_hook";
 import idl from "../target/idl/bullet.json";
 import hookIdl from "../target/idl/bullet_transfer_hook.json";
 
-const HOOK_PROGRAM_ID = new PublicKey(
-  "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
-);
+/** Follow built IDL address (matches `anchor keys sync` / localnet deploy). */
+const HOOK_PROGRAM_ID = new PublicKey((hookIdl as { address: string }).address);
 
 // --- minimal bankrun-backed Anchor provider ---
 

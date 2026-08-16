@@ -20,3 +20,6 @@ idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
 anchor-spl = { version = "0.31.1", features = ["token_2022"] }
 spl-token-2022 = "6.0.0"
+# Keep TRANSFER_HOOK_PROGRAM_ID in lockstep with bullet-transfer-hook's declare_id!
+# (so `anchor keys sync` for localnet updates both programs together).
+bullet-transfer-hook = { path = "../bullet-transfer-hook", features = ["no-entrypoint"] }

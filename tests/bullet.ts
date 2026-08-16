@@ -18,10 +18,6 @@ import type { BulletTransferHook } from "../target/types/bullet_transfer_hook";
 /** Reference only — localnet uses a mock mint. */
 export const ANSEM_MAINNET = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
 
-const HOOK_PROGRAM_ID = new PublicKey(
-  "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
-);
-
 const ONE = 1_000_000; // 1 token (6 decimals)
 const MAX_SUPPLY = new anchor.BN(5_000_000 * ONE);
 
@@ -39,20 +35,71 @@ function floorScaled(vaultBal: bigint, totalBorrowed: bigint, supply: bigint): b
   return ((vaultBal + totalBorrowed) * 1_000_000n) / supply;
 }
 
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Read a token account balance with retries.
+ * Token-2022 + local validator RPC often lag right after `.rpc()`; returning `0n` on a
+ * transient miss caused flaky genesis / vault asserts. Prefer RPC JSON, then getAccount,
+ * then raw bytes at SPL amount offset 64.
+ */
 async function bal(
   connection: anchor.web3.Connection,
   ata: PublicKey,
   tokenProgram: PublicKey = TOKEN_PROGRAM_ID,
-  retries = 6
+  retries = 20,
+  allowMissing = false
 ): Promise<bigint> {
+  let lastErr: unknown;
   for (let i = 0; i < retries; i++) {
-    const acc = await getAccount(connection, ata, "confirmed", tokenProgram).catch(() => null);
-    if (acc) return acc.amount;
-    const rpc = await connection.getTokenAccountBalance(ata, "confirmed").catch(() => null);
-    if (rpc) return BigInt(rpc.value.amount);
-    await new Promise((r) => setTimeout(r, 300));
+    try {
+      const rpc = await connection.getTokenAccountBalance(ata, "confirmed");
+      if (rpc?.value?.amount != null) return BigInt(rpc.value.amount);
+    } catch (e) {
+      lastErr = e;
+    }
+    try {
+      const acc = await getAccount(connection, ata, "confirmed", tokenProgram);
+      return acc.amount;
+    } catch (e) {
+      lastErr = e;
+    }
+    try {
+      const info = await connection.getAccountInfo(ata, "confirmed");
+      if (info?.data && info.data.length >= 72) {
+        return Buffer.from(info.data).readBigUInt64LE(64);
+      }
+      if (!info) lastErr = new Error("account missing");
+    } catch (e) {
+      lastErr = e;
+    }
+    await sleep(150 + i * 50);
   }
-  return 0n;
+  if (allowMissing) return 0n;
+  throw new Error(
+    `bal(${ata.toBase58()}) failed after ${retries} tries: ${String(lastErr)}`
+  );
+}
+
+/** Poll until balance satisfies `pred` (for post-tx Token-2022 lag). */
+async function waitBal(
+  connection: anchor.web3.Connection,
+  ata: PublicKey,
+  pred: (n: bigint) => boolean,
+  tokenProgram: PublicKey = TOKEN_PROGRAM_ID,
+  retries = 24
+): Promise<bigint> {
+  let last = 0n;
+  for (let i = 0; i < retries; i++) {
+    last = await bal(connection, ata, tokenProgram, 4, true);
+    if (pred(last)) return last;
+    await sleep(200 + i * 50);
+  }
+  throw new Error(
+    `waitBal(${ata.toBase58()}) last=${last.toString()} after ${retries} polls`
+  );
 }
 
 /** Assert an Anchor instruction rejects with a specific error code. */
@@ -120,6 +167,8 @@ describe("bullet protocol", () => {
   anchor.setProvider(provider);
   const program = anchor.workspace.Bullet as Program<Bullet>;
   const hookProgram = anchor.workspace.BulletTransferHook as Program<BulletTransferHook>;
+  /** Always follow the deployed hook id (works after localnet `anchor keys sync`). */
+  const HOOK_PROGRAM_ID = hookProgram.programId;
   const connection = provider.connection;
   const wallet = provider.wallet as anchor.Wallet;
 
@@ -429,6 +478,7 @@ describe("bullet protocol", () => {
         vault,
         polVault,
         feeRecipient: feeRecipient.publicKey,
+        feeRecipientAta,
         userAnsem: uAnsem,
         userBullet: bulletAta,
         tokenProgram: TOKEN_PROGRAM_ID,
@@ -436,8 +486,12 @@ describe("bullet protocol", () => {
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       });
-    if (user instanceof Keypair) return builder.signers([user]).rpc();
-    return builder.rpc();
+    const sig =
+      user instanceof Keypair
+        ? await builder.signers([user]).rpc()
+        : await builder.rpc();
+    await connection.confirmTransaction(sig, "confirmed");
+    return sig;
   }
 
   it("mints BULLET 1:1 (minus 5% out-fee) on the first deposit and routes fees", async () => {
@@ -452,10 +506,29 @@ describe("bullet protocol", () => {
     const expectedBribe = (fee * FEE_BRIBE_BPS) / BPS_DENOM;
     const expectedVault = BigInt(deposit) - expectedPol - expectedBribe;
 
-    assert.equal((await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID)).toString(), expectedBullet.toString());
-    assert.equal((await bal(connection, polVault)).toString(), expectedPol.toString());
-    assert.equal((await bal(connection, feeRecipientAta)).toString(), expectedBribe.toString());
-    assert.equal((await bal(connection, vault)).toString(), expectedVault.toString());
+    assert.equal(
+      (
+        await waitBal(
+          connection,
+          userBullet,
+          (n) => n === expectedBullet,
+          TOKEN_2022_PROGRAM_ID
+        )
+      ).toString(),
+      expectedBullet.toString()
+    );
+    assert.equal(
+      (await waitBal(connection, polVault, (n) => n === expectedPol)).toString(),
+      expectedPol.toString()
+    );
+    assert.equal(
+      (await waitBal(connection, feeRecipientAta, (n) => n === expectedBribe)).toString(),
+      expectedBribe.toString()
+    );
+    assert.equal(
+      (await waitBal(connection, vault, (n) => n === expectedVault)).toString(),
+      expectedVault.toString()
+    );
 
     const { proto } = await state();
     assert.equal(proto.totalSupply.toString(), expectedBullet.toString());
@@ -473,8 +546,14 @@ describe("bullet protocol", () => {
     await mint(wallet, userAnsem, userBullet, 100 * ONE);
 
     const after = await state();
+    const userBulletAfter = await waitBal(
+      connection,
+      userBullet,
+      (n) => n > userBulletBefore,
+      TOKEN_2022_PROGRAM_ID
+    );
     assert.isTrue(
-      (await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID)) > userBulletBefore,
+      userBulletAfter > userBulletBefore,
       "user BULLET should increase"
     );
     assert.isTrue(after.supply > before.supply, "supply should increase");
@@ -488,7 +567,7 @@ describe("bullet protocol", () => {
     const userAnsemBefore = await bal(connection, userAnsem);
     const burnAmt = 20 * ONE;
 
-    await program.methods
+    const sig = await program.methods
       .burnBullet(new anchor.BN(burnAmt))
       .accountsPartial({
         user: wallet.publicKey,
@@ -505,9 +584,15 @@ describe("bullet protocol", () => {
         bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
       })
       .rpc();
+    await connection.confirmTransaction(sig, "confirmed");
 
     const after = await state();
-    assert.isTrue((await bal(connection, userAnsem)) > userAnsemBefore, "user should receive ANSEM");
+    const userAnsemAfter = await waitBal(
+      connection,
+      userAnsem,
+      (n) => n > userAnsemBefore
+    );
+    assert.isTrue(userAnsemAfter > userAnsemBefore, "user should receive ANSEM");
     assert.equal((before.supply - after.supply).toString(), BigInt(burnAmt).toString());
     assert.isTrue(after.floor >= before.floor, "floor must not decrease on burn");
   });
@@ -545,7 +630,7 @@ describe("bullet protocol", () => {
     borrowLoan = loanPda(wallet.publicKey, loanIndex);
 
     const borrowAmt = 10 * ONE;
-    await program.methods
+    const sig = await program.methods
       .borrow(new anchor.BN(borrowAmt), 30)
       .accountsPartial({
         user: wallet.publicKey,
@@ -566,6 +651,7 @@ describe("bullet protocol", () => {
         systemProgram: SystemProgram.programId,
       })
       .rpc();
+    await connection.confirmTransaction(sig, "confirmed");
 
     const loan = await program.account.loan.fetch(borrowLoan);
     assert.isTrue(loan.active);
@@ -575,10 +661,14 @@ describe("bullet protocol", () => {
     const after = await state();
     assert.equal((after.borrowed - before.borrowed).toString(), BigInt(borrowAmt).toString());
     assert.equal(after.proto.loanCount.toNumber(), before.proto.loanCount.toNumber() + 1);
-    assert.equal(
-      (await bal(connection, collateralVault, TOKEN_2022_PROGRAM_ID)).toString(),
-      loan.collateralBullet.toString()
+    const expectedCollat = BigInt(loan.collateralBullet.toString());
+    const collatBal = await waitBal(
+      connection,
+      collateralVault,
+      (n) => n === expectedCollat,
+      TOKEN_2022_PROGRAM_ID
     );
+    assert.equal(collatBal.toString(), expectedCollat.toString());
     assert.isTrue(after.floor >= before.floor, "floor must not decrease on borrow");
   });
 
@@ -653,8 +743,9 @@ describe("bullet protocol", () => {
     const before = await state();
     const loan = await program.account.loan.fetch(borrowLoan);
     const userBulletBefore = await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID);
+    const expectedCollat = BigInt(loan.collateralBullet.toString());
 
-    await program.methods
+    const sig = await program.methods
       .repay()
       .accountsPartial({
         user: wallet.publicKey,
@@ -667,9 +758,10 @@ describe("bullet protocol", () => {
         userBullet,
         loan: borrowLoan,
         tokenProgram: TOKEN_PROGRAM_ID,
-      bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
+        bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
       })
       .rpc();
+    await connection.confirmTransaction(sig, "confirmed");
 
     const after = await state();
     assert.equal(
@@ -677,9 +769,15 @@ describe("bullet protocol", () => {
       loan.borrowedAnsem.toString(),
       "total_borrowed decreases by principal"
     );
+    const userBulletAfter = await waitBal(
+      connection,
+      userBullet,
+      (n) => n - userBulletBefore === expectedCollat,
+      TOKEN_2022_PROGRAM_ID
+    );
     assert.equal(
-      ((await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID)) - userBulletBefore).toString(),
-      loan.collateralBullet.toString(),
+      (userBulletAfter - userBulletBefore).toString(),
+      expectedCollat.toString(),
       "collateral returned to user"
     );
     await expectReject(program.account.loan.fetch(borrowLoan), "loan account closed");
@@ -694,10 +792,10 @@ describe("bullet protocol", () => {
     const before = await state();
     leverageLoan = loanPda(wallet.publicKey, before.proto.loanCount);
     const userAnsemBefore = await bal(connection, userAnsem);
-    const collatBefore = await bal(connection, collateralVault, TOKEN_2022_PROGRAM_ID);
+    const collatBefore = await bal(connection, collateralVault, TOKEN_2022_PROGRAM_ID, 8, true);
 
     const notional = 20 * ONE;
-    await program.methods
+    const sig = await program.methods
       .leverage(new anchor.BN(notional), 30)
       .accountsPartial({
         user: wallet.publicKey,
@@ -718,6 +816,7 @@ describe("bullet protocol", () => {
         systemProgram: SystemProgram.programId,
       })
       .rpc();
+    await connection.confirmTransaction(sig, "confirmed");
 
     const loan = await program.account.loan.fetch(leverageLoan);
     assert.isTrue(loan.active);
@@ -725,17 +824,22 @@ describe("bullet protocol", () => {
     assert.isTrue(loan.borrowedAnsem.toNumber() > 0);
 
     const after = await state();
+    const expectedCollat = BigInt(loan.collateralBullet.toString());
     // Collateral BULLET is minted straight into the collateral vault.
-    assert.equal(
-      ((await bal(connection, collateralVault, TOKEN_2022_PROGRAM_ID)) - collatBefore).toString(),
-      loan.collateralBullet.toString()
+    const collatAfter = await waitBal(
+      connection,
+      collateralVault,
+      (n) => n - collatBefore === expectedCollat,
+      TOKEN_2022_PROGRAM_ID
     );
+    assert.equal((collatAfter - collatBefore).toString(), expectedCollat.toString());
     assert.equal((after.supply - before.supply).toString(), loan.collateralBullet.toString());
     // Debt recorded in total_borrowed (internal credit, backs the mint).
     assert.equal((after.borrowed - before.borrowed).toString(), loan.borrowedAnsem.toString());
     // User pays ONLY the fees — its ANSEM balance strictly DECREASES (the borrowed
     // leg is not disbursed), and the spend is far below the notional.
-    const spent = userAnsemBefore - (await bal(connection, userAnsem));
+    const userAnsemAfter = await waitBal(connection, userAnsem, (n) => n < userAnsemBefore);
+    const spent = userAnsemBefore - userAnsemAfter;
     assert.isTrue(spent > 0n, "user pays leverage fees");
     assert.isTrue(spent < BigInt(notional), "user pays only fees, not the notional");
     assert.isTrue(spent < BigInt(loan.borrowedAnsem.toString()), "user does NOT receive the borrowed ANSEM");
@@ -748,8 +852,10 @@ describe("bullet protocol", () => {
     const loan = await program.account.loan.fetch(leverageLoan);
     const userBulletBefore = await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID);
     const userAnsemBefore = await bal(connection, userAnsem);
+    const expectedDebt = BigInt(loan.borrowedAnsem.toString());
+    const expectedCollat = BigInt(loan.collateralBullet.toString());
 
-    await program.methods
+    const sig = await program.methods
       .repay()
       .accountsPartial({
         user: wallet.publicKey,
@@ -765,18 +871,30 @@ describe("bullet protocol", () => {
         bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
       })
       .rpc();
+    await connection.confirmTransaction(sig, "confirmed");
 
+    const after = await state();
+    const userAnsemAfter = await waitBal(
+      connection,
+      userAnsem,
+      (n) => userAnsemBefore - n === expectedDebt
+    );
     assert.equal(
-      (userAnsemBefore - (await bal(connection, userAnsem))).toString(),
-      loan.borrowedAnsem.toString(),
+      (userAnsemBefore - userAnsemAfter).toString(),
+      expectedDebt.toString(),
       "user pays the borrowed principal"
     );
-    assert.equal(
-      ((await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID)) - userBulletBefore).toString(),
-      loan.collateralBullet.toString(),
-      "user reclaims the minted collateral"
+    const userBulletAfter = await waitBal(
+      connection,
+      userBullet,
+      (n) => n - userBulletBefore === expectedCollat,
+      TOKEN_2022_PROGRAM_ID
     );
-    const after = await state();
+    assert.equal(
+      (userBulletAfter - userBulletBefore).toString(),
+      expectedCollat.toString(),
+      "user reclaims leveraged collateral"
+    );
     assert.equal((before.borrowed - after.borrowed).toString(), loan.borrowedAnsem.toString());
     await expectReject(program.account.loan.fetch(leverageLoan), "leverage loan closed");
     assert.isTrue(after.floor >= before.floor, "floor must not decrease on repay");
@@ -973,7 +1091,12 @@ describe("bullet protocol", () => {
       const gv = genesisVaultPda(TIER0);
       const dep = await program.account.userDeposit.fetch(userDepositPda(gv, wallet.publicKey));
       assert.equal(dep.amount.toString(), BigInt(50 * ONE).toString());
-      assert.equal((await bal(connection, genesisTokenPda(TIER0))).toString(), BigInt(50 * ONE).toString());
+      const tokenBal = await waitBal(
+        connection,
+        genesisTokenPda(TIER0),
+        (n) => n === BigInt(50 * ONE)
+      );
+      assert.equal(tokenBal.toString(), BigInt(50 * ONE).toString());
       const vaultAcc = await program.account.genesisVault.fetch(gv);
       assert.equal(vaultAcc.totalRaised.toString(), BigInt(50 * ONE).toString());
     });
@@ -992,7 +1115,12 @@ describe("bullet protocol", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
         })
         .rpc();
-      assert.equal(((await bal(connection, userAnsem)) - ansemBefore).toString(), BigInt(50 * ONE).toString());
+      const ansemAfter = await waitBal(
+        connection,
+        userAnsem,
+        (n) => n - ansemBefore === BigInt(50 * ONE)
+      );
+      assert.equal((ansemAfter - ansemBefore).toString(), BigInt(50 * ONE).toString());
       const vaultAcc = await program.account.genesisVault.fetch(gv);
       assert.equal(vaultAcc.totalRaised.toNumber(), 0);
       await expectReject(
@@ -1037,7 +1165,12 @@ describe("bullet protocol", () => {
         .rpc();
 
       const expectedFee = (40n * BigInt(ONE) * 400n) / BPS_DENOM;
-      assert.equal((await bal(connection, polVault)) - polBefore, expectedFee);
+      const polAfter = await waitBal(
+        connection,
+        polVault,
+        (n) => n - polBefore === expectedFee
+      );
+      assert.equal(polAfter - polBefore, expectedFee);
       assert.equal((await bal(connection, feeRecipientAta)) - feeBefore, 0n);
     });
 
@@ -1079,10 +1212,14 @@ describe("bullet protocol", () => {
 
       const protoAfter = await state();
       assert.isTrue(protoAfter.supply > protoBefore.supply, "protocol supply grows on finalize");
-      assert.equal(
-        (await bal(connection, genesisBulletPda(TIER0), TOKEN_2022_PROGRAM_ID)).toString(),
-        vaultAcc.totalBullet.toString()
+      const expectedBullet = BigInt(vaultAcc.totalBullet.toString());
+      const genesisBulletBal = await waitBal(
+        connection,
+        genesisBulletPda(TIER0),
+        (n) => n === expectedBullet,
+        TOKEN_2022_PROGRAM_ID
       );
+      assert.equal(genesisBulletBal.toString(), expectedBullet.toString());
     });
 
     it("rejects deposits after finalize", async () => {
@@ -1114,10 +1251,21 @@ describe("bullet protocol", () => {
 
       const userBulletBefore = await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID);
       await claim(wallet, userBullet);
-      const gainUser = (await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID)) - userBulletBefore;
+      const userBulletAfter = await waitBal(
+        connection,
+        userBullet,
+        (n) => n > userBulletBefore,
+        TOKEN_2022_PROGRAM_ID
+      );
+      const gainUser = userBulletAfter - userBulletBefore;
 
       await claim(user2, user2Bullet);
-      const gainUser2 = await bal(connection, user2Bullet, TOKEN_2022_PROGRAM_ID);
+      const gainUser2 = await waitBal(
+        connection,
+        user2Bullet,
+        (n) => n > 0n,
+        TOKEN_2022_PROGRAM_ID
+      );
 
       assert.isTrue(gainUser > 0n && gainUser2 > 0n, "both depositors receive BULLET");
       // user deposited 2x → gets ~2x (allow small rounding).
