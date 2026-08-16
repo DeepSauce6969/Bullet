@@ -1,20 +1,19 @@
 /**
- * Simulate mint_bullet against the live deployed program.
- * Uses the correct Token-2022 account list so account mismatch is not confused
- * with curve MathOverflow. After the u128 math upgrade is deployed, expect a
- * non-MathOverflow failure (e.g. missing user ATA / insufficient funds).
+ * Simulate mint_bullet against the live Dae3 program (classic SPL Token mint).
+ * Uses a funded wallet so the sim reaches curve math (not AccountNotFound).
  *
  * Usage: npx tsx scripts/sim-mint-math-overflow.ts
+ *        MINT_AMOUNT=1000 npx tsx scripts/sim-mint-math-overflow.ts
  */
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
-  TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAccount,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 import {
   Connection,
-  Keypair,
   PublicKey,
   SystemProgram,
   Transaction,
@@ -35,58 +34,75 @@ const MINT_DISC = Buffer.from([9, 170, 106, 201, 179, 12, 221, 147]);
 
 async function main() {
   const connection = new Connection(RPC, "confirmed");
-  // Fake user — simulation only (no funded ATAs). Separates account errors from math.
-  const user = Keypair.generate().publicKey;
+  const user = process.env.MINT_USER
+    ? new PublicKey(process.env.MINT_USER)
+    : FEE_RECIPIENT;
   const userAnsem = getAssociatedTokenAddressSync(ANSEM_MINT, user);
-  const userBullet = getAssociatedTokenAddressSync(
-    BULLET_MINT,
-    user,
-    false,
-    TOKEN_2022_PROGRAM_ID
-  );
+  const userBullet = getAssociatedTokenAddressSync(BULLET_MINT, user);
   const feeAta = getAssociatedTokenAddressSync(ANSEM_MINT, FEE_RECIPIENT);
 
-  const amount = 1_000_000_000n; // 1000 Ansem — product overflows u64; u128 path should not
+  const ansemBal = await getAccount(connection, userAnsem);
+  const human = Number(process.env.MINT_AMOUNT ?? "1000");
+  const amount = BigInt(Math.floor(human * 1e6));
+  console.log({
+    user: user.toBase58(),
+    ansemBal: ansemBal.amount.toString(),
+    mintAnsem: amount.toString(),
+  });
+
   const data = Buffer.alloc(16);
   MINT_DISC.copy(data, 0);
   data.writeBigUInt64LE(amount, 8);
 
-  const ix = new TransactionInstruction({
-    programId: PROGRAM_ID,
-    keys: [
-      { pubkey: user, isSigner: true, isWritable: true },
-      { pubkey: PROTOCOL, isSigner: false, isWritable: true },
-      { pubkey: BULLET_MINT, isSigner: false, isWritable: true },
-      { pubkey: ANSEM_MINT, isSigner: false, isWritable: false },
-      { pubkey: VAULT, isSigner: false, isWritable: true },
-      { pubkey: POL_VAULT, isSigner: false, isWritable: true },
-      { pubkey: FEE_RECIPIENT, isSigner: false, isWritable: false },
-      { pubkey: feeAta, isSigner: false, isWritable: true },
-      { pubkey: userAnsem, isSigner: false, isWritable: true },
-      { pubkey: userBullet, isSigner: false, isWritable: true },
-      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-      { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
-      { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-    ],
-    data,
-  });
+  const tx = new Transaction().add(
+    createAssociatedTokenAccountIdempotentInstruction(
+      user,
+      userBullet,
+      user,
+      BULLET_MINT
+    ),
+    new TransactionInstruction({
+      programId: PROGRAM_ID,
+      keys: [
+        { pubkey: user, isSigner: true, isWritable: true },
+        { pubkey: PROTOCOL, isSigner: false, isWritable: true },
+        { pubkey: BULLET_MINT, isSigner: false, isWritable: true },
+        { pubkey: ANSEM_MINT, isSigner: false, isWritable: false },
+        { pubkey: VAULT, isSigner: false, isWritable: true },
+        { pubkey: POL_VAULT, isSigner: false, isWritable: true },
+        { pubkey: FEE_RECIPIENT, isSigner: false, isWritable: false },
+        { pubkey: feeAta, isSigner: false, isWritable: true },
+        { pubkey: userAnsem, isSigner: false, isWritable: true },
+        { pubkey: userBullet, isSigner: false, isWritable: true },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ],
+      data,
+    })
+  );
 
-  const tx = new Transaction().add(ix);
   tx.feePayer = user;
   const { blockhash } = await connection.getLatestBlockhash();
   tx.recentBlockhash = blockhash;
 
   const sim = await connection.simulateTransaction(tx);
   console.log("err:", JSON.stringify(sim.value.err));
+  console.log("units:", sim.value.unitsConsumed);
   console.log("logs:");
   for (const l of sim.value.logs ?? []) console.log(" ", l);
 
   const joined = (sim.value.logs ?? []).join("\n");
   if (joined.includes("MathOverflow") || joined.includes("6011")) {
-    console.log("\nDeployed program still hits MathOverflow (6011) — u128 fix not live yet.");
+    console.log("\nFAIL: MathOverflow (6011) still live.");
+    process.exit(1);
+  }
+  if (sim.value.err == null) {
+    console.log("\nOK: mint sim succeeded (no MathOverflow).");
   } else {
-    console.log("\nNo MathOverflow — either u128 fix is live, or an earlier account/token check failed.");
+    console.log(
+      "\nNo MathOverflow — sim failed earlier/later for another reason (see logs)."
+    );
   }
 }
 
