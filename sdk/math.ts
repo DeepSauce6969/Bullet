@@ -15,7 +15,7 @@ export const INTEREST_APY_BPS = 780n;
 export const BASE_BORROW_FEE_BPS = 20n;
 export const LEVERAGE_BAKE_BPS = 200n;
 export const OVERCOLLAT_BPS = 200n;
-export const DEFAULT_MAX_SUPPLY = 2_500n * 1_000_000n;
+export const DEFAULT_MAX_SUPPLY = 5_000_000n * 1_000_000n;
 
 export function backing(vault: bigint, borrowed: bigint): bigint {
   return vault + borrowed;

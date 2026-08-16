@@ -468,6 +468,19 @@ pub struct SetFeeRecipient<'info> {
 }
 
 #[derive(Accounts)]
+pub struct SetMaxSupply<'info> {
+    pub authority: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [Protocol::SEED],
+        bump = protocol.bump,
+        has_one = authority @ BulletError::Unauthorized,
+    )]
+    pub protocol: Box<Account<'info, Protocol>>,
+}
+
+#[derive(Accounts)]
 #[instruction(tier: u8)]
 pub struct InitGenesisVault<'info> {
     #[account(mut)]

@@ -6,22 +6,22 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-bullet = "4PTGwC7KTRZhjhKgXXrD9WTRyoCb8cpKWy6HAsaMXvBj"
+bullet = "Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3"
 bullet_transfer_hook = "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
 
 [programs.devnet]
-bullet = "4PTGwC7KTRZhjhKgXXrD9WTRyoCb8cpKWy6HAsaMXvBj"
+bullet = "Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3"
 bullet_transfer_hook = "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
 
 [programs.mainnet]
-bullet = "4PTGwC7KTRZhjhKgXXrD9WTRyoCb8cpKWy6HAsaMXvBj"
+bullet = "Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3"
 bullet_transfer_hook = "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Devnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

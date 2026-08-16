@@ -23,7 +23,7 @@ const HOOK_PROGRAM_ID = new PublicKey(
 );
 
 const ONE = 1_000_000; // 1 token (6 decimals)
-const MAX_SUPPLY = new anchor.BN(2_500 * ONE);
+const MAX_SUPPLY = new anchor.BN(5_000_000 * ONE);
 
 // Mirror of on-chain constants (programs/bullet/src/state.rs).
 const PROTOCOL_FEE_BPS = 500n;

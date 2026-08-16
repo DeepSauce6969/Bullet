@@ -6,7 +6,12 @@
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
     "test": "anchor test",
-    "test:localnet": "anchor test --provider.cluster localnet"
+    "test:localnet": "anchor test --provider.cluster localnet",
+    "simulate:leverage": "tsx scripts/simulate-leverage-devnet.ts",
+    "upgrade:devnet": "bash scripts/upgrade-devnet.sh",
+    "redeploy:devnet": "bash scripts/redeploy-devnet.sh",
+    "sync:frontend": "tsx scripts/sync-frontend-addresses.ts",
+    "set-max-supply": "tsx scripts/set-max-supply-devnet.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",

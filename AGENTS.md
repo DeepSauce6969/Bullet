@@ -37,7 +37,7 @@ The committed `Cargo.lock` pins `edition2024` crates (e.g. `zeroize_derive 1.5.0
 
 - `anchor test` uses `[provider] cluster = "Devnet"` from `Anchor.toml`, so plain `anchor test` targets **devnet**. For the local smoke tests (initialize/mint/borrow) run against a local validator instead:
   `anchor test --provider.cluster localnet`
-- Localnet requires the program's deploy address to equal `declare_id!` in `programs/bullet/src/lib.rs`. The matching program keypair is git-ignored and not in the repo, so a fresh `target/deploy/bullet-keypair.json` won't match the committed id (`4PTGwC7...`). To run localnet tests, temporarily `anchor keys sync` (updates `declare_id`/`Anchor.toml`) and set `[programs.localnet]` to the synced id, then `anchor test --provider.cluster localnet`. **Revert those tracked-file edits afterward** (`git checkout Anchor.toml programs/bullet/src/lib.rs`) — do not commit them.
+- Localnet requires the program's deploy address to equal `declare_id!` in `programs/bullet/src/lib.rs`. The matching program keypair is git-ignored and not in the repo, so a fresh `target/deploy/bullet-keypair.json` won't match the committed id (`Dae3D7…`). To run localnet tests, temporarily `anchor keys sync` (updates `declare_id`/`Anchor.toml`) and set `[programs.localnet]` to the synced id, then `anchor test --provider.cluster localnet`. **Revert those tracked-file edits afterward** (`git checkout Anchor.toml programs/bullet/src/lib.rs`) — do not commit them.
 - A provider wallet at `~/.config/solana/id.json` is required; if missing, `solana-keygen new -o ~/.config/solana/id.json`. The local validator funds it automatically.
 
 ### Frontend
@@ -50,3 +50,12 @@ The committed `Cargo.lock` pins `edition2024` crates (e.g. `zeroize_derive 1.5.0
 - Frontend lint (`cd frontend && npm run lint` → bare `eslint`) currently fails: there is no ESLint v9 flat config (`eslint.config.*`) in the repo, so ESLint 9 errors out. This is a pre-existing repo state, not an environment issue.
 - Root lint is `npm run lint` → `prettier --check`. It reports style diffs on existing source and on `frontend/.next/` build output (no prettier-ignore); the command runs, it just isn't clean.
 - `npm install` re-writes `frontend/package-lock.json` (committed lockfile was generated with a different npm version). This churn is expected; discard it (`git checkout frontend/package-lock.json`) if you don't intend to update deps.
+
+### Devnet leverage / program upgrade / redeploy
+
+- Old program `4PTGwC7…` (authority `5RE5a…`) still has the buggy leverage bytecode. If that authority key is lost, do a **fresh redeploy** instead of upgrade.
+- Fresh redeploy (new program id, new PDAs, new mock Ansem): fund deployer `~/.config/solana/id.json` with ~5 SOL on devnet, then `npm run redeploy:devnet` (`scripts/redeploy-devnet.sh`). This runs keys sync → build → deploy → init → genesis → `sync-frontend-addresses`.
+- After redeploy, commit updated `deployed-devnet.json`, `programs/bullet/src/lib.rs` `declare_id!`, `Anchor.toml`, and `frontend/src/lib/bullet.ts` addresses.
+- Keep the deployer seed phrase **out of git** (`~/.config/solana/DEPLOYER_SEED.txt`, gitignored). Store it as a Cursor secret for future agents.
+- Smoke check: `npm run simulate:leverage` (expect `"err": null`).
+- In-place upgrade of `4PTGwC7…` only if you recover the `5RE5a…` keypair: `npm run upgrade:devnet`.

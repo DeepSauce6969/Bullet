@@ -10,7 +10,7 @@ pub mod token2022_mint;
 
 pub use ix_accounts::*;
 
-declare_id!("4PTGwC7KTRZhjhKgXXrD9WTRyoCb8cpKWy6HAsaMXvBj");
+declare_id!("Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3");
 
 /// Bullet protocol — Ansem-backed up-only floor token.
 /// Up-only floor mechanics without Uniswap v4 hooks:
@@ -68,6 +68,11 @@ pub mod bullet {
     /// Update fee recipient (bribes wallet). Authority only.
     pub fn set_fee_recipient(ctx: Context<SetFeeRecipient>, fee_recipient: Pubkey) -> Result<()> {
         instructions::admin::set_fee_recipient(ctx, fee_recipient)
+    }
+
+    /// Update max BULLET supply (raw 6-decimal units). Authority only.
+    pub fn set_max_supply(ctx: Context<SetMaxSupply>, max_supply: u64) -> Result<()> {
+        instructions::admin::set_max_supply(ctx, max_supply)
     }
 
     /// Initialize a genesis pre-deposit vault tier (0=VIP, 1=Community, 2=Public).

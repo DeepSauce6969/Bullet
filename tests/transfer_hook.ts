@@ -118,7 +118,7 @@ describe("bullet transfer hook (DEX tax)", () => {
     const existing = await connection.getAccountInfo(protocolPda);
     if (!existing) {
       await bullet.methods
-        .initialize(new anchor.BN(2_500 * ONE), feeRecipient.publicKey)
+        .initialize(new anchor.BN(5_000_000 * ONE), feeRecipient.publicKey)
         .accountsPartial({
           authority: wallet.publicKey,
           protocol: protocolPda,

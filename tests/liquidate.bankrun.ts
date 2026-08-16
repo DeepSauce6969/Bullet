@@ -170,7 +170,7 @@ describe("bullet loan liquidation (bankrun clock warp)", () => {
     )[0];
 
     await program.methods
-      .initialize(new anchor.BN(2_500 * ONE), feeRecipient.publicKey)
+      .initialize(new anchor.BN(5_000_000 * ONE), feeRecipient.publicKey)
       .accountsPartial({
         authority: payer.publicKey,
         protocol: protocolPda,

@@ -26,8 +26,8 @@ pub const MAX_LOAN_DAYS: u16 = 365;
 pub const SECONDS_PER_DAY: i64 = 86_400;
 
 pub const BULLET_DECIMALS: u8 = 6;
-/// Default max supply: 2,500 BULLET (6 decimals).
-pub const DEFAULT_MAX_SUPPLY: u64 = 2_500 * 1_000_000;
+/// Default max supply: 5,000,000 BULLET (6 decimals).
+pub const DEFAULT_MAX_SUPPLY: u64 = 5_000_000 * 1_000_000;
 
 /// Token-2022 transfer hook program (DEX-only gate + tax config).
 pub const TRANSFER_HOOK_PROGRAM_ID: Pubkey =

@@ -16,27 +16,27 @@ import {
 } from "@solana/web3.js";
 
 export const PROGRAM_ID = new PublicKey(
-  "4PTGwC7KTRZhjhKgXXrD9WTRyoCb8cpKWy6HAsaMXvBj"
+  "Dae3D7CEUSLqxyHhzMquLtmzkhjNWnbpokS6t1hG4fk3"
 );
 /** Devnet mock Ansem (mainnet: 9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump). */
 export const ANSEM_MINT = new PublicKey(
-  "GC3hpHn9p2LtzWwM3WQrYPZXXsxULg53pPKfRoAs2gVW"
+  "GCqc8CToxTNK97h6Zc72V8DfmHJKeEPFnWg2niDP7CgB"
 );
 export const PROTOCOL_PDA = new PublicKey(
-  "BuX8YpyhynL7sqnSZPM4t7nnqz8nuqrDd9NwohLsezy3"
+  "GrzacYkUsrhctr8GaWAzTrVbtdM4a6ouL3D48fY533N5"
 );
 export const BULLET_MINT = new PublicKey(
-  "5WMkxFSRhBj4WUXkZQmKb3iutZGRvaPe9vwdNhJ1JCta"
+  "5mn87veZKojAk8kviARtXehqvtoFsdb4pv1V284WfZGb"
 );
-export const VAULT = new PublicKey("BkR95i3Nzw9dVV4NW3njhjTFBSYxDTJFQgBpA7mdQSS");
+export const VAULT = new PublicKey("4B7VmCqJs5yLE5juXVvDuTndeHyaCktGfhVsRZMPDwaF");
 export const POL_VAULT = new PublicKey(
-  "8EJCAxD9HNH6nXWdD9sTp565KcdmwsBXf6aiSQMttAub"
+  "C3zBMAJrZNnsoLLBQzV3V9SV9btdLzQ3HJ3VpabwspD5"
 );
 export const COLLATERAL_VAULT = new PublicKey(
-  "DdPnuEy3XirLxQbJizTUqwrs6UD2iWnuPQXyTUmzLbVd"
+  "Aoe2U698NZxy94exyptDcVx38EoLNLhQPW1YdPUiE8Ey"
 );
 export const FEE_RECIPIENT = new PublicKey(
-  "5RE5aMBxrUkD9iEfX5Tj5E5CCpNZhdGptswAV8nYF1bK"
+  "1zrYVfhRhMNkmnSBazaKKzRwAc4GLyP3Kew9K4SCnMo"
 );
 
 export const CLUSTER = "devnet" as const;
@@ -46,7 +46,7 @@ export const EXPLORER_TX = (sig: string) =>
 
 export const BULLET_DECIMALS = 6;
 export const ANSEM_DECIMALS = 6;
-export const DEFAULT_MAX_SUPPLY = 2_500;
+export const DEFAULT_MAX_SUPPLY = 5_000_000;
 export const BUY_FEE_PCT = 5;
 export const SELL_FEE_PCT = 5;
 export const BORROW_APR_PCT = 7.8;
@@ -62,6 +62,7 @@ const IX_DISC: Record<string, number[]> = {
   leverage: [90, 173, 201, 136, 28, 211, 126, 59],
   liquidate: [223, 179, 226, 125, 48, 46, 39, 74],
   set_fee_recipient: [227, 18, 215, 42, 237, 246, 151, 66],
+  set_max_supply: [16, 207, 140, 77, 107, 20, 202, 158],
   init_genesis_vault: [216, 130, 217, 204, 17, 60, 88, 217],
   deposit_genesis: [169, 26, 78, 22, 234, 157, 233, 237],
   withdraw_genesis: [215, 26, 193, 114, 79, 4, 138, 19],
@@ -319,6 +320,44 @@ export async function fetchActiveLoan(
   return EMPTY_LOAN;
 }
 
+/** Pull a concise message from Solana simulateTransaction logs / err. */
+function formatSimError(
+  err: unknown,
+  logs: string[] | null | undefined
+): Error {
+  const joined = (logs ?? []).join("\n");
+  const anchorLine =
+    (logs ?? []).find((l) => l.includes("AnchorError")) ??
+    (logs ?? []).find((l) => /Error Code:|Error Message:/.test(l));
+
+  const codeName = anchorLine?.match(/Error Code:\s*(\w+)/)?.[1];
+  const codeNum =
+    anchorLine?.match(/Error Number:\s*(\d+)/)?.[1] ??
+    (typeof err === "object" && err !== null
+      ? JSON.stringify(err).match(/Custom["\s:]*(\d+)/)?.[1]
+      : undefined);
+  const codeMsg = anchorLine?.match(/Error Message:\s*(.+?)(?:\.|$)/)?.[1];
+
+  if (codeName || codeMsg) {
+    const parts = [
+      codeName,
+      codeNum ? `(${codeNum})` : null,
+      codeMsg ? `— ${codeMsg}` : null,
+    ].filter(Boolean);
+    return new Error(parts.join(" "));
+  }
+
+  if (anchorLine) {
+    return new Error(anchorLine.replace(/^Program log:\s*/, ""));
+  }
+
+  return new Error(
+    `Transaction simulation failed: ${
+      err && typeof err === "object" ? JSON.stringify(err) : String(err)
+    }`
+  );
+}
+
 async function sendIx(
   wallet: WalletContextState,
   connection: Connection,
@@ -332,6 +371,19 @@ async function sendIx(
     await connection.getLatestBlockhash();
   tx.recentBlockhash = blockhash;
   tx.feePayer = wallet.publicKey;
+
+  // Pre-simulate so Anchor custom errors surface before the wallet swallows them.
+  let sim: Awaited<ReturnType<Connection["simulateTransaction"]>> | null =
+    null;
+  try {
+    sim = await connection.simulateTransaction(tx);
+  } catch {
+    // RPC simulate unavailable — fall through to wallet send
+  }
+  if (sim?.value.err) {
+    throw formatSimError(sim.value.err, sim.value.logs);
+  }
+
   const sig = await wallet.sendTransaction(tx, connection);
   await connection.confirmTransaction(
     { signature: sig, blockhash, lastValidBlockHeight },

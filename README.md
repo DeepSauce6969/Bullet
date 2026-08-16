@@ -8,7 +8,7 @@
 |---------|-------|------|
 | Solana mainnet | Ansem | `9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump` |
 
-Protocol token: **$BULLET** (6 decimals, max supply **2,500** by default).
+Protocol token: **$BULLET** (6 decimals, max supply **5,000,000** by default).
 
 ## Scope
 
