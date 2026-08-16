@@ -5,7 +5,6 @@ use crate::math;
 use crate::state::*;
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Transfer};
-use anchor_spl::token_interface::{self, Burn, MintTo};
 
 pub fn handler(ctx: Context<Repay>) -> Result<()> {
     let clock = Clock::get()?;
@@ -35,26 +34,14 @@ pub fn handler(ctx: Context<Repay>) -> Result<()> {
         principal,
     )?;
 
-    // Return collateral BULLET without a taxable transfer (burn vault + mint to user).
+    // Return collateral BULLET.
     let bump = protocol.bump;
     let seeds: &[&[u8]] = &[Protocol::SEED, &[bump]];
-    token_interface::burn(
+    token::transfer(
         CpiContext::new_with_signer(
-            ctx.accounts.bullet_token_program.to_account_info(),
-            Burn {
-                mint: ctx.accounts.bullet_mint.to_account_info(),
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
                 from: ctx.accounts.collateral_vault.to_account_info(),
-                authority: ctx.accounts.protocol.to_account_info(),
-            },
-            &[seeds],
-        ),
-        collateral,
-    )?;
-    token_interface::mint_to(
-        CpiContext::new_with_signer(
-            ctx.accounts.bullet_token_program.to_account_info(),
-            MintTo {
-                mint: ctx.accounts.bullet_mint.to_account_info(),
                 to: ctx.accounts.user_bullet.to_account_info(),
                 authority: ctx.accounts.protocol.to_account_info(),
             },

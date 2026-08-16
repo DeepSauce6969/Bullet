@@ -5,7 +5,6 @@ use crate::math;
 use crate::state::*;
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Transfer};
-use anchor_spl::token_interface::{self, Burn, MintTo};
 
 pub fn handler(ctx: Context<Borrow>, ansem_amount: u64, number_of_days: u16) -> Result<()> {
     require!(ctx.accounts.protocol.trading_enabled, BulletError::TradingDisabled);
@@ -113,27 +112,15 @@ pub fn handler(ctx: Context<Borrow>, ansem_amount: u64, number_of_days: u16) -> 
         BulletError::ExceedsLtv
     );
 
-    // Lock collateral without a taxable BULLET transfer (burn + mint to vault).
-    token_interface::burn(
+    // Lock collateral.
+    token::transfer(
         CpiContext::new(
-            ctx.accounts.bullet_token_program.to_account_info(),
-            Burn {
-                mint: ctx.accounts.bullet_mint.to_account_info(),
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
                 from: ctx.accounts.user_bullet.to_account_info(),
+                to: ctx.accounts.collateral_vault.to_account_info(),
                 authority: ctx.accounts.user.to_account_info(),
             },
-        ),
-        min_collateral,
-    )?;
-    token_interface::mint_to(
-        CpiContext::new_with_signer(
-            ctx.accounts.bullet_token_program.to_account_info(),
-            MintTo {
-                mint: ctx.accounts.bullet_mint.to_account_info(),
-                to: ctx.accounts.collateral_vault.to_account_info(),
-                authority: ctx.accounts.protocol.to_account_info(),
-            },
-            &[seeds],
         ),
         min_collateral,
     )?;

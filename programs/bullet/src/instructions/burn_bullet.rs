@@ -4,8 +4,7 @@ use crate::events::Burned;
 use crate::math;
 use crate::state::*;
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Transfer};
-use anchor_spl::token_interface::{self, Burn};
+use anchor_spl::token::{self, Burn, Transfer};
 
 pub fn handler(ctx: Context<BurnBullet>, bullet_amount: u64) -> Result<()> {
     require!(ctx.accounts.protocol.trading_enabled, BulletError::TradingDisabled);
@@ -22,9 +21,9 @@ pub fn handler(ctx: Context<BurnBullet>, bullet_amount: u64) -> Result<()> {
     let (pol, bribe) = math::split_fee(fee)?;
 
     // Burn BULLET from user.
-    token_interface::burn(
+    token::burn(
         CpiContext::new(
-            ctx.accounts.bullet_token_program.to_account_info(),
+            ctx.accounts.token_program.to_account_info(),
             Burn {
                 mint: ctx.accounts.bullet_mint.to_account_info(),
                 from: ctx.accounts.user_bullet.to_account_info(),

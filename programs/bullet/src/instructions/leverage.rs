@@ -4,11 +4,10 @@ use crate::events::Leveraged;
 use crate::math;
 use crate::state::*;
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Transfer};
-use anchor_spl::token_interface::{self, MintTo};
+use anchor_spl::token::{self, MintTo, Transfer};
 
 /// Leverage loop:
-/// bakeFee = 2% of A
+/// bakeFee = 1% of A
 /// userSpy = A - bakeFee
 /// userBorrow = 0.99 * userSpy
 /// overCollat = 0.01 * userSpy
@@ -101,7 +100,7 @@ pub fn handler(ctx: Context<Leverage>, ansem_amount: u64, number_of_days: u16) -
         )?;
     }
 
-    // Mint BULLET for user_spy notional at curve, apply leverage bake path (already paid 2%).
+    // Mint BULLET for user_spy notional at curve, apply leverage bake path (already paid 1%).
     // Gross mint ≈ ansem_to_bullet for user_spy after deposit of over_collat+backing parts.
     let vault_after_fees = vault_bal
         .checked_add(fees_total)
@@ -140,9 +139,9 @@ pub fn handler(ctx: Context<Leverage>, ansem_amount: u64, number_of_days: u16) -
         .ok_or(BulletError::MathOverflow)?;
 
     // Mint BULLET directly into collateral vault (locked).
-    token_interface::mint_to(
+    token::mint_to(
         CpiContext::new_with_signer(
-            ctx.accounts.bullet_token_program.to_account_info(),
+            ctx.accounts.token_program.to_account_info(),
             MintTo {
                 mint: ctx.accounts.bullet_mint.to_account_info(),
                 to: ctx.accounts.collateral_vault.to_account_info(),

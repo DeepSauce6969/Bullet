@@ -4,7 +4,7 @@ use crate::events::Liquidated;
 use crate::math;
 use crate::state::*;
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::{self, Burn};
+use anchor_spl::token::{self, Burn};
 
 pub fn handler(ctx: Context<Liquidate>) -> Result<()> {
     let clock = Clock::get()?;
@@ -25,9 +25,9 @@ pub fn handler(ctx: Context<Liquidate>) -> Result<()> {
     // Burn locked collateral from collateral vault.
     let bump = protocol.bump;
     let seeds: &[&[u8]] = &[Protocol::SEED, &[bump]];
-    token_interface::burn(
+    token::burn(
         CpiContext::new_with_signer(
-            ctx.accounts.bullet_token_program.to_account_info(),
+            ctx.accounts.token_program.to_account_info(),
             Burn {
                 mint: ctx.accounts.bullet_mint.to_account_info(),
                 from: ctx.accounts.collateral_vault.to_account_info(),

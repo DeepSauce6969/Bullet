@@ -4,8 +4,7 @@ use crate::events::Minted;
 use crate::math;
 use crate::state::*;
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Transfer};
-use anchor_spl::token_interface::{self, MintTo};
+use anchor_spl::token::{self, MintTo, Transfer};
 
 pub fn handler(ctx: Context<MintBullet>, ansem_amount: u64) -> Result<()> {
     require!(ctx.accounts.protocol.trading_enabled, BulletError::TradingDisabled);
@@ -72,9 +71,9 @@ pub fn handler(ctx: Context<MintBullet>, ansem_amount: u64) -> Result<()> {
     math::assert_floor_non_decreasing(floor_before, floor_after)?;
 
     let seeds: &[&[u8]] = &[Protocol::SEED, &[protocol.bump]];
-    token_interface::mint_to(
+    token::mint_to(
         CpiContext::new_with_signer(
-            ctx.accounts.bullet_token_program.to_account_info(),
+            ctx.accounts.token_program.to_account_info(),
             MintTo {
                 mint: ctx.accounts.bullet_mint.to_account_info(),
                 to: ctx.accounts.user_bullet.to_account_info(),
