@@ -103,7 +103,7 @@ pub struct GenesisVault {
     pub token_vault: Pubkey,
     /// BULLET ATA owned by this vault PDA after finalize.
     pub bullet_vault: Pubkey,
-    /// Tier mint fee in bps (0 / 250 / 400 = VIP / Community / Public).
+    /// Tier mint fee in bps (0 / 250 / 350 = VIP / Community / Public).
     pub fee_bps: u16,
     pub deposit_cap: u64,
     pub max_allocation: u64,

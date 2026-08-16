@@ -39,7 +39,7 @@
       "genesisVault": "8YeLGH7t47CNNQHuGJDKZnSu5b5u8p2KcMkritif9Uoh",
       "tokenVault": "D59FkUba9eeUCfyGKkvWJ562h5Sz1s5kKcFCc3zV1qfi",
       "bulletVault": "2sWvv33qYnwABZ4KSixtddUec13d3KERPUY2AQDzuPaP",
-      "feeBps": 400,
+      "feeBps": 350,
       "depositCap": 1000000,
       "maxAllocation": 5000,
       "initTx": "3jBnTDT4NJgX5k5ZgejVW73Zi8mdskD8LhxHLJ6ni8cyhucwFmkpw16D9mz97WJMKQzdiGuQeyGSHkgwzBdDu8ak"
