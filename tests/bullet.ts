@@ -190,6 +190,7 @@ describe("bullet protocol", () => {
   before(async () => {
     // Fresh validators can accept RPC before the SPL programs finish loading.
     await waitForProgram(connection, TOKEN_PROGRAM_ID);
+    await waitForProgram(connection, TOKEN_2022_PROGRAM_ID);
     await waitForProgram(connection, ASSOCIATED_TOKEN_PROGRAM_ID);
 
     ansemMint = await withValidatorRetry(
@@ -398,7 +399,16 @@ describe("bullet protocol", () => {
     const expectedBribe = (fee * FEE_BRIBE_BPS) / BPS_DENOM;
     const expectedVault = BigInt(deposit) - expectedPol - expectedBribe;
 
-    assert.equal((await bal(connection, userBullet, TOKEN_2022_PROGRAM_ID)).toString(), expectedBullet.toString());
+    const bulletAta = await ensureBulletAta(wallet.publicKey);
+    const userBulletBal = await withValidatorRetry(
+      async () => {
+        const b = await bal(connection, bulletAta, TOKEN_2022_PROGRAM_ID);
+        if (b < expectedBullet) throw new Error("balance not ready");
+        return b;
+      },
+      "post-mint BULLET balance"
+    );
+    assert.equal(userBulletBal.toString(), expectedBullet.toString());
     assert.equal((await bal(connection, polVault)).toString(), expectedPol.toString());
     assert.equal((await bal(connection, feeRecipientAta)).toString(), expectedBribe.toString());
     assert.equal((await bal(connection, vault)).toString(), expectedVault.toString());

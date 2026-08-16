@@ -23,13 +23,13 @@ The committed `Cargo.lock` pins `edition2024` crates (e.g. `zeroize_derive 1.5.0
 - `anchor build` (0.31.1) force-activates Solana `2.1.0`, whose bundled `cargo-build-sbf` uses platform-tools **v1.43 (cargo 1.79)** — too old. To avoid fighting this on every build, the `2.1.0` release dir is symlinked to the `3.1.2` release: `~/.local/share/solana/install/releases/2.1.0/solana-release -> ../3.1.2/solana-release`. This makes anchor's forced `2.1.0` resolve to v1.52 tools, so plain `anchor build` and `anchor test` work. Keep this symlink; if it's ever lost, `agave-install init 3.1.2` and re-create it (original is at `2.1.0/solana-release.orig`).
 - First SBF build downloads platform-tools v1.52 into `~/.cache/solana/` (large, one-time). It is already cached here.
 
-### BULLET Token-2022 + transfer fee
+### BULLET Token-2022 (no transfer fee)
 
-- BULLET is a **Token-2022** mint with `TransferFeeConfig` (default **500 bps / 5%**, adjustable via fee authority + `SetTransferFee`).
-- There is **no transfer hook gate** — wallet-to-wallet transfers are allowed (fee still applies on `Transfer`).
-- Protocol paths use **mint/burn** (not `transfer`) so mint/burn/borrow/leverage are not taxed.
-- Compatible with Meteora DLMM **permissionless** Token-2022 path (`TransferFeeConfig` only).
-- Local tests: `npm run test:localnet` (includes `tests/transfer_hook.ts` for P2P + fee).
+- BULLET is a **Token-2022** mint with **no transfer fee** and **no freeze authority** — wallet-to-wallet transfers are free.
+- Protocol paths use **mint/burn** (not `transfer`) for mint/burn/borrow/leverage.
+- A DEX-only tax would require a separate mechanism (e.g. Meteora pool fee or a gated transfer hook with a Meteora token badge).
+- Compatible with Meteora DLMM **permissionless** Token-2022 path (no hook, no freeze authority).
+- Local tests: `npm run test:localnet` (includes `tests/transfer_hook.ts` for free P2P transfers).
 
 ### Running the localnet tests
 

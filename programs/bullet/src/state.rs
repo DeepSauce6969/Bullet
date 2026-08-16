@@ -29,9 +29,6 @@ pub const BULLET_DECIMALS: u8 = 6;
 /// Default max supply: 2,500 BULLET (6 decimals).
 pub const DEFAULT_MAX_SUPPLY: u64 = 2_500 * 1_000_000;
 
-/// Default 5% transfer fee (basis points). Adjustable via SetTransferFee on the mint.
-pub const DEFAULT_TRANSFER_TAX_BPS: u16 = 500;
-
 #[account]
 #[derive(InitSpace)]
 pub struct Protocol {
