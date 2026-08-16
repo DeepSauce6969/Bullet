@@ -17,9 +17,8 @@ pub fn handler(ctx: Context<Initialize>, max_supply: u64, fee_recipient: Pubkey)
         &ctx.accounts.protocol.to_account_info(),
         mint_bump,
         protocol_bump,
-        ctx.accounts.transfer_hook_program.key,
         ctx.accounts.authority.key,
-        DEFAULT_DEX_TRANSFER_TAX_BPS,
+        DEFAULT_TRANSFER_TAX_BPS,
         &ctx.accounts.system_program.to_account_info(),
         &ctx.accounts.token_2022_program.to_account_info(),
         &ctx.accounts.rent.to_account_info(),
@@ -55,10 +54,10 @@ pub fn handler(ctx: Context<Initialize>, max_supply: u64, fee_recipient: Pubkey)
     protocol.padding = [0u8; 32];
 
     msg!(
-        "Bullet initialized | max_supply={} | backing_mint={} | dex_tax_bps={}",
+        "Bullet initialized | max_supply={} | backing_mint={} | transfer_tax_bps={}",
         max_supply,
         ctx.accounts.ansem_mint.key(),
-        DEFAULT_DEX_TRANSFER_TAX_BPS,
+        DEFAULT_TRANSFER_TAX_BPS,
     );
     Ok(())
 }

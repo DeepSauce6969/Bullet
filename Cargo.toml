@@ -1,5 +1,5 @@
 [workspace]
-members = ["programs/bullet", "programs/bullet-transfer-hook"]
+members = ["programs/bullet"]
 resolver = "2"
 
 [profile.release]

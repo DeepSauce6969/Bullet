@@ -50,6 +50,4 @@ pub enum BulletError {
     InvalidTier,
     #[msg("Invalid token program — BULLET requires Token-2022")]
     InvalidTokenProgram,
-    #[msg("Invalid transfer hook program")]
-    InvalidTransferHook,
 }

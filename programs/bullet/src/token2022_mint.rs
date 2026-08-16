@@ -5,21 +5,19 @@ use anchor_lang::solana_program::program::invoke_signed;
 use anchor_lang::solana_program::system_instruction;
 use spl_token_2022::extension::{
     transfer_fee::instruction::initialize_transfer_fee_config,
-    transfer_hook::instruction::initialize as initialize_transfer_hook,
     ExtensionType,
 };
 use spl_token_2022::instruction::{initialize_account3, initialize_mint};
 use spl_token_2022::solana_program::program_pack::Pack;
 use spl_token_2022::state::{Account as Token2022Account, Mint as Mint2022};
 
-/// Create the BULLET Token-2022 mint PDA with TransferHook + TransferFee (DEX tax).
+/// Create the BULLET Token-2022 mint PDA with TransferFee (5% default, adjustable).
 pub fn create_bullet_mint<'info>(
     payer: &AccountInfo<'info>,
     mint: &AccountInfo<'info>,
     protocol: &AccountInfo<'info>,
     mint_bump: u8,
     protocol_bump: u8,
-    transfer_hook_program: &Pubkey,
     fee_authority: &Pubkey,
     transfer_tax_bps: u16,
     system_program: &AccountInfo<'info>,
@@ -30,15 +28,8 @@ pub fn create_bullet_mint<'info>(
         *token_program.key == spl_token_2022::id(),
         BulletError::InvalidTokenProgram
     );
-    require!(
-        *transfer_hook_program == TRANSFER_HOOK_PROGRAM_ID,
-        BulletError::InvalidTransferHook
-    );
 
-    let extensions = [
-        ExtensionType::TransferFeeConfig,
-        ExtensionType::TransferHook,
-    ];
+    let extensions = [ExtensionType::TransferFeeConfig];
     let space = ExtensionType::try_calculate_account_len::<Mint2022>(&extensions)
         .map_err(|_| BulletError::MathOverflow)?;
     let lamports = Rent::get()?.minimum_balance(space);
@@ -72,17 +63,6 @@ pub fn create_bullet_mint<'info>(
     )?;
 
     invoke_signed(
-        &initialize_transfer_hook(
-            token_program.key,
-            mint.key,
-            Some(protocol.key()),
-            Some(*transfer_hook_program),
-        )?,
-        &[mint.clone()],
-        &[],
-    )?;
-
-    invoke_signed(
         &initialize_mint(
             token_program.key,
             mint.key,
@@ -97,12 +77,9 @@ pub fn create_bullet_mint<'info>(
     Ok(())
 }
 
-/// Required Token-2022 account extensions for BULLET mint (TransferFee + TransferHook).
+/// Required Token-2022 account extensions for BULLET mint (TransferFee only).
 fn bullet_account_extensions() -> Vec<ExtensionType> {
-    let mint_extensions = [
-        ExtensionType::TransferFeeConfig,
-        ExtensionType::TransferHook,
-    ];
+    let mint_extensions = [ExtensionType::TransferFeeConfig];
     let mut account_extensions =
         ExtensionType::get_required_init_account_extensions(&mint_extensions);
     account_extensions.push(ExtensionType::ImmutableOwner);

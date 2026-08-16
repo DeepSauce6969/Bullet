@@ -29,12 +29,8 @@ pub const BULLET_DECIMALS: u8 = 6;
 /// Default max supply: 2,500 BULLET (6 decimals).
 pub const DEFAULT_MAX_SUPPLY: u64 = 2_500 * 1_000_000;
 
-/// Token-2022 transfer hook program (DEX-only gate + tax config).
-pub const TRANSFER_HOOK_PROGRAM_ID: Pubkey =
-    anchor_lang::solana_program::pubkey!("DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp");
-
-/// Default 5% tax on DEX transfers (basis points). Adjustable via hook + SetTransferFee.
-pub const DEFAULT_DEX_TRANSFER_TAX_BPS: u16 = 500;
+/// Default 5% transfer fee (basis points). Adjustable via SetTransferFee on the mint.
+pub const DEFAULT_TRANSFER_TAX_BPS: u16 = 500;
 
 #[account]
 #[derive(InitSpace)]

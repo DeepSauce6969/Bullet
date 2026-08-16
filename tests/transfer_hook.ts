@@ -5,51 +5,40 @@ import {
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   createAssociatedTokenAccount,
-  createTransferCheckedWithTransferHookInstruction,
+  createMint,
   getAssociatedTokenAddressSync,
-  getMintLen,
-  getTransferHook,
-  harvestWithheldTokensToMint,
-  ExtensionType,
-  createInitializeTransferFeeConfigInstruction,
-  createInitializeTransferHookInstruction,
-  createInitializeMintInstruction,
-  createMintToInstruction,
-  createAccount,
+  getMint,
+  getTransferFeeConfig,
+  calculateEpochFee,
   getOrCreateAssociatedTokenAccount,
-  transferCheckedWithTransferHook,
+  mintTo,
+  transferChecked,
+  transferCheckedWithFee,
 } from "@solana/spl-token";
-import { Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { assert } from "chai";
 import type { Bullet } from "../target/types/bullet";
-import type { BulletTransferHook } from "../target/types/bullet_transfer_hook";
 
-const HOOK_PROGRAM_ID = new PublicKey(
-  "DYEKb6VJpHqjGKNhoDyG1uijqFbdgn69yb8N3R4jAhzp"
-);
 const ONE = 1_000_000;
-const DEX_TAX_BPS = 500; // 5%
+const TRANSFER_TAX_BPS = 500; // 5%
 
 async function bal(
   connection: anchor.web3.Connection,
-  ata: PublicKey,
-  tokenProgram: PublicKey = TOKEN_2022_PROGRAM_ID
+  ata: PublicKey
 ): Promise<bigint> {
-  const { getAccount } = await import("@solana/spl-token");
-  const acc = await getAccount(connection, ata, "confirmed", tokenProgram).catch(() => null);
-  return acc ? acc.amount : 0n;
+  const resp = await connection.getTokenAccountBalance(ata, "confirmed").catch(() => null);
+  return resp ? BigInt(resp.value.amount) : 0n;
 }
 
-describe("bullet transfer hook (DEX tax)", () => {
+describe("bullet transfer fee (Token-2022)", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
   const bullet = anchor.workspace.Bullet as Program<Bullet>;
-  const hook = anchor.workspace.BulletTransferHook as Program<BulletTransferHook>;
   const connection = provider.connection;
   const wallet = provider.wallet as anchor.Wallet;
 
-  const pda = (seeds: (Buffer | Uint8Array)[], programId: PublicKey) =>
-    PublicKey.findProgramAddressSync(seeds, programId)[0];
+  const pda = (seeds: (Buffer | Uint8Array)[]) =>
+    PublicKey.findProgramAddressSync(seeds, bullet.programId)[0];
 
   let ansemMint: PublicKey;
   let feeRecipient: Keypair;
@@ -58,13 +47,10 @@ describe("bullet transfer hook (DEX tax)", () => {
   let vault: PublicKey;
   let polVault: PublicKey;
   let collateralVault: PublicKey;
-  let hookConfig: PublicKey;
-  let extraAccountMetaList: PublicKey;
   let userAnsem: PublicKey;
   let userBullet: PublicKey;
 
   before(async () => {
-    const { createMint, mintTo } = await import("@solana/spl-token");
     ansemMint = await createMint(
       connection,
       wallet.payer,
@@ -80,16 +66,11 @@ describe("bullet transfer hook (DEX tax)", () => {
       feeRecipient.publicKey
     );
 
-    protocolPda = pda([Buffer.from("protocol")], bullet.programId);
-    bulletMint = pda([Buffer.from("bullet_mint")], bullet.programId);
-    vault = pda([Buffer.from("vault")], bullet.programId);
-    polVault = pda([Buffer.from("pol_vault")], bullet.programId);
-    collateralVault = pda([Buffer.from("collateral_vault")], bullet.programId);
-    hookConfig = pda([Buffer.from("hook_config"), bulletMint.toBuffer()], HOOK_PROGRAM_ID);
-    extraAccountMetaList = pda(
-      [Buffer.from("extra-account-metas"), bulletMint.toBuffer()],
-      HOOK_PROGRAM_ID
-    );
+    protocolPda = pda([Buffer.from("protocol")]);
+    bulletMint = pda([Buffer.from("bullet_mint")]);
+    vault = pda([Buffer.from("vault")]);
+    polVault = pda([Buffer.from("pol_vault")]);
+    collateralVault = pda([Buffer.from("collateral_vault")]);
 
     userAnsem = await createAssociatedTokenAccount(
       connection,
@@ -113,7 +94,7 @@ describe("bullet transfer hook (DEX tax)", () => {
     );
   });
 
-  it("initializes protocol + hook + mints BULLET", async () => {
+  it("initializes protocol and mints BULLET", async () => {
     const existing = await connection.getAccountInfo(protocolPda);
     if (!existing) {
       await bullet.methods
@@ -126,7 +107,6 @@ describe("bullet transfer hook (DEX tax)", () => {
           vault,
           polVault,
           collateralVault,
-          transferHookProgram: HOOK_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
           tokenProgram: TOKEN_PROGRAM_ID,
           token2022Program: TOKEN_2022_PROGRAM_ID,
@@ -135,157 +115,111 @@ describe("bullet transfer hook (DEX tax)", () => {
         .rpc();
     }
 
-    const hookCfgInfo = await connection.getAccountInfo(hookConfig);
-    if (!hookCfgInfo) {
-      await hook.methods
-        .initializeConfig(DEX_TAX_BPS)
-        .accountsPartial({
-          authority: wallet.publicKey,
-          mint: bulletMint,
-          hookConfig,
-          systemProgram: SystemProgram.programId,
-        })
-        .rpc();
-    }
-
-    const extraMetaInfo = await connection.getAccountInfo(extraAccountMetaList);
-    if (!extraMetaInfo) {
-      await hook.methods
-        .initializeExtraAccountMetaList()
-        .accountsPartial({
-          payer: wallet.publicKey,
-          mint: bulletMint,
-          extraAccountMetaList,
-          systemProgram: SystemProgram.programId,
-        })
-        .rpc();
-    }
-
-    try {
-      await hook.methods
-        .registerExemptAccount()
-        .accountsPartial({
-          authority: wallet.publicKey,
-          mint: bulletMint,
-          hookConfig,
-          tokenAccount: collateralVault,
-        })
-        .rpc();
-    } catch {
-      // already exempt
-    }
-
-    const userBulletBal = await bal(connection, userBullet);
-    if (userBulletBal === 0n) {
-      await bullet.methods
-        .mintBullet(new anchor.BN(10 * ONE))
-      .accountsPartial({
-        user: wallet.publicKey,
-        protocol: protocolPda,
-        bulletMint,
-        ansemMint,
-        vault,
-        polVault,
-        feeRecipient: feeRecipient.publicKey,
-        userAnsem,
-        userBullet,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
-    }
-
-    const bulletBal = await bal(connection, userBullet);
-    assert.isTrue(bulletBal > 0n);
-  });
-
-  it("blocks wallet-to-wallet BULLET transfer", async () => {
-    const recipient = Keypair.generate();
-    const recipientBullet = getAssociatedTokenAddressSync(
+    const bulletAta = getAssociatedTokenAddressSync(
       bulletMint,
-      recipient.publicKey,
+      wallet.publicKey,
       false,
       TOKEN_2022_PROGRAM_ID
     );
-    await createAssociatedTokenAccount(
+    const bulletBal = await bal(connection, bulletAta);
+    if (bulletBal === 0n) {
+      await createAssociatedTokenAccount(
+        connection,
+        wallet.payer,
+        bulletMint,
+        wallet.publicKey,
+        undefined,
+        TOKEN_2022_PROGRAM_ID
+      );
+      await bullet.methods
+        .mintBullet(new anchor.BN(10 * ONE))
+        .accountsPartial({
+          user: wallet.publicKey,
+          protocol: protocolPda,
+          bulletMint,
+          ansemMint,
+          vault,
+          polVault,
+          feeRecipient: feeRecipient.publicKey,
+          userAnsem,
+          userBullet: bulletAta,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          bulletTokenProgram: TOKEN_2022_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    }
+
+    assert.isTrue((await bal(connection, bulletAta)) > 0n);
+  });
+
+  it("allows wallet-to-wallet transfer with 5% fee", async () => {
+    const recipient = Keypair.generate();
+    const sender = await getOrCreateAssociatedTokenAccount(
+      connection,
+      wallet.payer,
+      bulletMint,
+      wallet.publicKey,
+      false,
+      undefined,
+      undefined,
+      TOKEN_2022_PROGRAM_ID
+    );
+    const recipientAta = await getOrCreateAssociatedTokenAccount(
       connection,
       wallet.payer,
       bulletMint,
       recipient.publicKey,
+      false,
+      undefined,
       undefined,
       TOKEN_2022_PROGRAM_ID
     );
 
-    let failed = false;
+    const amount = 100n * BigInt(ONE);
+    const recipientBefore = await bal(connection, recipientAta.address);
+    assert.isTrue(sender.amount >= amount, "sender needs BULLET balance");
+
+    const mintInfo = await getMint(connection, bulletMint, "confirmed", TOKEN_2022_PROGRAM_ID);
+    const feeConfig = getTransferFeeConfig(mintInfo)!;
+    const epoch = BigInt((await connection.getEpochInfo()).epoch);
+    const fee = calculateEpochFee(feeConfig, epoch, amount);
+
+    // Prefer TransferCheckedWithFee; fall back to TransferChecked on older validators.
     try {
-      await transferCheckedWithTransferHook(
+      await transferCheckedWithFee(
         connection,
         wallet.payer,
-        userBullet,
+        sender.address,
         bulletMint,
-        recipientBullet,
-        wallet.publicKey,
-        1n * BigInt(ONE),
+        recipientAta.address,
+        wallet.payer,
+        amount,
         6,
+        fee,
         [],
         { commitment: "confirmed" },
         TOKEN_2022_PROGRAM_ID
       );
     } catch {
-      failed = true;
+      await transferChecked(
+        connection,
+        wallet.payer,
+        sender.address,
+        bulletMint,
+        recipientAta.address,
+        wallet.payer,
+        amount,
+        6,
+        [],
+        { commitment: "confirmed" },
+        TOKEN_2022_PROGRAM_ID
+      );
     }
-    assert.isTrue(failed, "wallet transfer should be rejected by hook");
-  });
 
-  it("allows DEX pool transfer with 5% tax", async () => {
-    const dexPool = Keypair.generate();
-    const dexPoolBullet = getAssociatedTokenAddressSync(
-      bulletMint,
-      dexPool.publicKey,
-      false,
-      TOKEN_2022_PROGRAM_ID
-    );
-    await createAssociatedTokenAccount(
-      connection,
-      wallet.payer,
-      bulletMint,
-      dexPool.publicKey,
-      undefined,
-      TOKEN_2022_PROGRAM_ID
-    );
-
-    await hook.methods
-      .registerDexPool()
-      .accountsPartial({
-        authority: wallet.publicKey,
-        mint: bulletMint,
-        hookConfig,
-        poolTokenAccount: dexPoolBullet,
-      })
-      .rpc();
-
-    const amount = 100n * BigInt(ONE);
-    const poolBefore = await bal(connection, dexPoolBullet);
-
-    await transferCheckedWithTransferHook(
-      connection,
-      wallet.payer,
-      userBullet,
-      bulletMint,
-      dexPoolBullet,
-      wallet.publicKey,
-      amount,
-      6,
-      [],
-      { commitment: "confirmed" },
-      TOKEN_2022_PROGRAM_ID
-    );
-
-    const poolAfter = await bal(connection, dexPoolBullet);
-    const received = poolAfter - poolBefore;
-  // 5% fee withheld on transfer
-    assert.equal(received, (amount * 95n) / 100n);
+    const received = (await bal(connection, recipientAta.address)) - recipientBefore;
+    const expected = (amount * BigInt(10_000 - TRANSFER_TAX_BPS)) / 10_000n;
+    assert.equal(received, expected);
   });
 });
