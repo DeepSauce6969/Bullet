@@ -30,22 +30,40 @@ const EMPTY_METRICS: ProtocolMetrics = {
   totalMinted: "0.0000",
   activeBorrows: "0.0000",
   backingRatio: "100.00",
-  tradingEnabled: false,
+  // Unknown until first successful fetch — do NOT treat as paused.
+  tradingEnabled: true,
   loanCount: 0,
 };
+
+const METRICS_POLL_MS = 60_000;
+const BALANCE_POLL_MS = 45_000;
+const GENESIS_POLL_MS = 60_000;
 
 export function useProtocolMetrics() {
   const { connection } = useConnection();
   const [data, setData] = useState<ProtocolMetrics>(EMPTY_METRICS);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasFetched, setHasFetched] = useState(false);
+  const [rpcError, setRpcError] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
     setIsLoading(true);
     try {
       const m = await fetchMetrics(connection);
       setData(m);
-    } catch {
-      setData(EMPTY_METRICS);
+      setHasFetched(true);
+      setRpcError(null);
+      return m;
+    } catch (e: unknown) {
+      // Keep last-good metrics. Resetting to EMPTY made the UI falsely show
+      // "Trading paused" whenever public RPC returned 429.
+      const msg = e instanceof Error ? e.message : String(e);
+      setRpcError(
+        /429|too many requests|failed to fetch|several servers/i.test(msg)
+          ? "RPC rate-limited — retrying. Protocol trading state unchanged."
+          : "Could not refresh protocol metrics (RPC error)."
+      );
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -53,11 +71,11 @@ export function useProtocolMetrics() {
 
   useEffect(() => {
     refetch();
-    const id = setInterval(refetch, 15_000);
+    const id = setInterval(refetch, METRICS_POLL_MS);
     return () => clearInterval(id);
   }, [refetch]);
 
-  return { data, isLoading, refetch };
+  return { data, isLoading, hasFetched, rpcError, refetch };
 }
 
 export function useTokenBalances() {
@@ -91,28 +109,24 @@ export function useTokenBalances() {
       setBulletRaw(bal.bulletRaw);
       return bal;
     } catch {
-      const empty = {
-        ansem: "0",
-        bullet: "0",
-        ansemRaw: BigInt(0),
-        bulletRaw: BigInt(0),
+      // Keep last balances on transient RPC errors (don't flash to 0).
+      return {
+        ansem: ansemBalance,
+        bullet: bulletBalance,
+        ansemRaw,
+        bulletRaw,
       };
-      setAnsemBalance("0");
-      setBulletBalance("0");
-      setAnsemRaw(BigInt(0));
-      setBulletRaw(BigInt(0));
-      return empty;
     } finally {
       setIsLoading(false);
     }
-  }, [publicKey, connection]);
+  }, [publicKey, connection, ansemBalance, bulletBalance, ansemRaw, bulletRaw]);
 
   useEffect(() => {
     refetch();
     if (!publicKey) return;
-    const id = setInterval(refetch, 12_000);
+    const id = setInterval(refetch, BALANCE_POLL_MS);
     return () => clearInterval(id);
-  }, [refetch, publicKey]);
+  }, [publicKey]); // eslint-disable-line react-hooks/exhaustive-deps -- avoid refetch identity churn
 
   return {
     ansemBalance,
@@ -139,7 +153,7 @@ export function useLoan() {
     try {
       setLoan(await fetchActiveLoan(publicKey, connection));
     } catch {
-      setLoan(EMPTY_LOAN);
+      // Keep last loan view on RPC blip
     } finally {
       setIsLoading(false);
     }
@@ -177,7 +191,9 @@ export function useBulletActions() {
 export function useGenesisVaults() {
   const { publicKey } = useWallet();
   const { connection } = useConnection();
-  const [vaults, setVaults] = useState<GenesisVaultView[]>(placeholderGenesisVaults);
+  const [vaults, setVaults] = useState<GenesisVaultView[]>(() =>
+    placeholderGenesisVaults()
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   const refetch = useCallback(
@@ -186,7 +202,7 @@ export function useGenesisVaults() {
       try {
         setVaults(await fetchGenesisVaults(publicKey, connection));
       } catch {
-        setVaults(placeholderGenesisVaults());
+        // Keep last vault snapshot on RPC errors
       } finally {
         setIsLoading(false);
       }
@@ -196,7 +212,7 @@ export function useGenesisVaults() {
 
   useEffect(() => {
     refetch();
-    const id = setInterval(() => refetch({ silent: true }), 15_000);
+    const id = setInterval(() => refetch({ silent: true }), GENESIS_POLL_MS);
     return () => clearInterval(id);
   }, [refetch]);
 

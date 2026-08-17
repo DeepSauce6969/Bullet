@@ -76,7 +76,8 @@ export default function LoansPage() {
     refetch: refetchBalances,
   } = useTokenBalances();
   const { loan: loanData, refetch: refetchLoan } = useLoan();
-  const { data: metrics } = useProtocolMetrics();
+  const { data: metrics, hasFetched: metricsReady, rpcError } =
+    useProtocolMetrics();
   const actions = useBulletActions();
   const { formatSpyUsd } = useTokenPrices();
 
@@ -100,6 +101,7 @@ export default function LoansPage() {
   const floor = Number(metrics.floorPrice) || 1;
   const hasLoan = loanData.hasLoan;
   const tradingEnabled = metrics.tradingEnabled;
+  const showTradingPaused = metricsReady && !tradingEnabled;
   const isExpired =
     hasLoan &&
     loanData.endTs > 0 &&
@@ -280,7 +282,7 @@ export default function LoansPage() {
       setVisible(true);
       return;
     }
-    if (!tradingEnabled) {
+    if (showTradingPaused) {
       showTxToast.error("Trading is currently disabled on the protocol.");
       return;
     }
@@ -436,7 +438,12 @@ export default function LoansPage() {
           Borrow liquid Ansem backed by BULLET or open automated leveraged
           positions.
         </p>
-        {!tradingEnabled && (
+        {!showTradingPaused && rpcError && (
+          <p className="text-xs font-mono text-amber-600 pt-2">
+            {rpcError}
+          </p>
+        )}
+        {showTradingPaused && (
           <p className="text-xs font-mono text-amber-600 pt-2">
             Trading is paused — new borrows, leverage, mint, and burn are disabled until the protocol re-enables trading.
           </p>
@@ -765,18 +772,21 @@ export default function LoansPage() {
               !amount ||
               Number(amount) <= 0 ||
               (mode === "borrow" &&
-                (!tradingEnabled ||
+                (showTradingPaused ||
                   hasLoan ||
                   Number(amount) > Number(maxBorrowableAnsem) ||
                   insufficientBulletCollateral)) ||
               (mode === "leverage" &&
-                (!tradingEnabled || hasLoan || insufficientLeverageFees || leverageNotional <= 0))
+                (showTradingPaused ||
+                  hasLoan ||
+                  insufficientLeverageFees ||
+                  leverageNotional <= 0))
             }
             className="w-full py-4 rounded-full btn-primary font-mono font-bold text-xs tracking-wider uppercase disabled:opacity-50"
           >
             {!connected
               ? "CONNECT WALLET"
-              : !tradingEnabled
+              : showTradingPaused
                 ? "TRADING PAUSED"
                 : hasLoan
                   ? "USE ACCOUNT WITH NO LOANS"

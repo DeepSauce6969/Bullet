@@ -13,10 +13,9 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Config
 
-See `src/lib/bullet.ts`:
+See `src/lib/bullet.ts` (Token-2022 live deploy):
 
-- `PROGRAM_ID` — `B32QL2ecw22eUTmoqrsq7a5EDJRkpsiq4EapKGrFk26s`
-- `ANSEM_MINT` — `9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump`
+- `PROGRAM_ID` — `Gz7TX19wG7y4k8qCHt5eWQEpUMn6ALosV27PsWJDaAzJ`
+- `ANSEM_MINT` — mock `6Pk6iwk927RAypbWhVwCBi6nH8Heo7Zpxkv9EvrHJWnA` (devnet faucet on Mint & Burn)
 - `CLUSTER` — `devnet`
-
-Tx actions call typed stubs until the Anchor IDL is copied into `src/idl/bullet.json`.
+- `NEXT_PUBLIC_SOLANA_RPC_URL` — optional dedicated RPC (Helius/QuickNode). Public `api.devnet.solana.com` rate-limits (429); without a private RPC the app throttles requests and keeps last-known protocol state so the UI does not falsely show “Trading paused”.

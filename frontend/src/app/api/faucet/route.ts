@@ -4,10 +4,11 @@ import {
   getAssociatedTokenAddressSync,
   mintTo,
 } from "@solana/spl-token";
-import { Connection, Keypair, PublicKey, clusterApiUrl } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { RPC_URL } from "@/lib/bullet";
 
 const ANSEM_MINT = new PublicKey(
   "6Pk6iwk927RAypbWhVwCBi6nH8Heo7Zpxkv9EvrHJWnA"
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const recipient = new PublicKey(body.address as string);
-    const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
+    const connection = new Connection(RPC_URL, "confirmed");
     const authority = loadAuthority();
 
     const ata = getAssociatedTokenAddressSync(ANSEM_MINT, recipient);

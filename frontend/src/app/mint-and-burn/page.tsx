@@ -56,7 +56,8 @@ function TokenBadge({ symbol }: { symbol: "ANSEM" | "BULLET" }) {
 export default function MintAndBurnPage() {
   const { connected, publicKey } = useWallet();
   const { setVisible } = useWalletModal();
-  const { data: metrics, refetch: refetchMetrics } = useProtocolMetrics();
+  const { data: metrics, hasFetched: metricsReady, rpcError, refetch: refetchMetrics } =
+    useProtocolMetrics();
   const { ansemBalance, bulletBalance, refetch: refetchBalances } =
     useTokenBalances();
   const actions = useBulletActions();
@@ -85,6 +86,7 @@ export default function MintAndBurnPage() {
 
   const floorPrice = metrics.floorPrice;
   const tradingEnabled = metrics.tradingEnabled;
+  const showTradingPaused = metricsReady && !tradingEnabled;
   const payToken: "ANSEM" | "BULLET" = isMinting ? "ANSEM" : "BULLET";
   const receiveToken: "ANSEM" | "BULLET" = isMinting ? "BULLET" : "ANSEM";
   const payBalance = isMinting ? ansemBalance : bulletBalance;
@@ -134,7 +136,7 @@ export default function MintAndBurnPage() {
       setVisible(true);
       return;
     }
-    if (!tradingEnabled) {
+    if (showTradingPaused) {
       showTxToast.error("Trading is currently disabled on the protocol.");
       return;
     }
@@ -206,11 +208,11 @@ export default function MintAndBurnPage() {
     isAmountTooHigh ||
     !amount ||
     Number(amount) <= 0 ||
-    !tradingEnabled;
+    showTradingPaused;
 
   const buttonText = !connected
     ? "Connect Wallet"
-    : !tradingEnabled
+    : showTradingPaused
       ? "Trading Paused"
     : isLoading
       ? "Processing..."
@@ -253,7 +255,12 @@ export default function MintAndBurnPage() {
         </button>
       </div>
 
-      {!tradingEnabled && (
+      {!showTradingPaused && rpcError && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-mono text-amber-700">
+          {rpcError}
+        </div>
+      )}
+      {showTradingPaused && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-mono text-amber-700">
           Trading is paused — mint and burn are disabled until the protocol re-enables trading.
         </div>

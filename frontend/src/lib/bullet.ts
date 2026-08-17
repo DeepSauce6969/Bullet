@@ -41,7 +41,16 @@ export const FEE_RECIPIENT = new PublicKey(
 );
 
 export const CLUSTER = "devnet" as const;
-export const RPC_URL = clusterApiUrl(CLUSTER);
+/**
+ * Public Solana RPCs rate-limit aggressively (429 → Next.js error overlay +
+ * false "trading paused" when metrics fetch fails). Override with
+ * NEXT_PUBLIC_SOLANA_RPC_URL (Helius/QuickNode/etc.) when available.
+ */
+export const RPC_URL =
+  (typeof process !== "undefined" &&
+    process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim()) ||
+  clusterApiUrl(CLUSTER);
+
 export const EXPLORER_TX = (sig: string) =>
   `https://explorer.solana.com/tx/${sig}?cluster=${CLUSTER}`;
 
@@ -52,6 +61,46 @@ export const BUY_FEE_PCT = 4;
 export const SELL_FEE_PCT = 4;
 export const BORROW_APR_PCT = 7.8;
 export const BASE_BORROW_FEE_PCT = 0.2;
+
+/** Space out browser JSON-RPC calls so public endpoints don't 429-storm. */
+let rpcChain: Promise<unknown> = Promise.resolve();
+let rpcLastAt = 0;
+const RPC_MIN_GAP_MS = 100;
+
+export async function throttledRpcFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  const run = async () => {
+    const gap = Math.max(0, RPC_MIN_GAP_MS - (Date.now() - rpcLastAt));
+    if (gap > 0) await new Promise((r) => setTimeout(r, gap));
+    rpcLastAt = Date.now();
+    return fetch(input, init);
+  };
+  const next = rpcChain.then(run, run);
+  rpcChain = next.then(
+    () => undefined,
+    () => undefined
+  );
+  return next;
+}
+
+export const RPC_CONNECTION_CONFIG = {
+  commitment: "confirmed" as const,
+  disableRetryOnRateLimit: true,
+  fetch: throttledRpcFetch,
+};
+
+let sharedConnection: Connection | null = null;
+
+export function getConnection(): Connection {
+  if (!sharedConnection) {
+    sharedConnection = new Connection(RPC_URL, RPC_CONNECTION_CONFIG);
+  }
+  return sharedConnection;
+}
+
+/** Anchor sha256("global:<name>")[0..8] */
 
 /** Anchor sha256("global:<name>")[0..8] */
 const IX_DISC: Record<string, number[]> = {
@@ -125,10 +174,6 @@ export type ProtocolAccount = {
   loanCount: bigint;
   tradingEnabled: boolean;
 };
-
-export function getConnection(): Connection {
-  return new Connection(RPC_URL, "confirmed");
-}
 
 /** BULLET is Token-2022 — ATA derivation must use TOKEN_2022_PROGRAM_ID. */
 export function bulletAta(owner: PublicKey, allowOwnerOffCurve = false): PublicKey {
