@@ -88,6 +88,56 @@ async function main() {
   console.log("hook", hookProgram.toBase58());
   console.log("fee vault", feeVault.toBase58());
 
+  function settleIx(dest: PublicKey): TransactionInstruction {
+    return new TransactionInstruction({
+      programId: hookProgram,
+      keys: [
+        { pubkey: mint, isSigner: false, isWritable: true },
+        { pubkey: hookConfig, isSigner: false, isWritable: true },
+        { pubkey: withdrawAuth, isSigner: false, isWritable: false },
+        { pubkey: feeVault, isSigner: false, isWritable: true },
+        { pubkey: dest, isSigner: false, isWritable: true },
+        { pubkey: extraMetas, isSigner: false, isWritable: false },
+        { pubkey: hookProgram, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+      ],
+      data: sighash("settle_dex_tax_refund"),
+    });
+  }
+
+  async function settle(dest: PublicKey): Promise<string | null> {
+    try {
+      return await sendAndConfirmTransaction(
+        connection,
+        new Transaction().add(settleIx(dest)),
+        [payer],
+        { commitment: "confirmed" }
+      );
+    } catch (e: any) {
+      const msg = String(e?.message ?? e);
+      if (msg.includes("NoPendingRefund") || msg.includes("0x177a")) {
+        return null;
+      }
+      throw e;
+    }
+  }
+
+  {
+    const cfgInfo = await connection.getAccountInfo(hookConfig, "confirmed");
+    if (cfgInfo && cfgInfo.data.length >= 768) {
+      const pendingDest = new PublicKey(cfgInfo.data.subarray(728, 760));
+      const pendingAmt = cfgInfo.data.readBigUInt64LE(760);
+      if (pendingAmt > 0n && !pendingDest.equals(PublicKey.default)) {
+        console.log(
+          "settling leftover pending",
+          pendingDest.toBase58(),
+          pendingAmt.toString()
+        );
+        console.log("  leftover settle", await settle(pendingDest));
+      }
+    }
+  }
+
   const poolKp = Keypair.generate();
   const dexVault = getAssociatedTokenAddressSync(
     mint,
@@ -135,33 +185,6 @@ async function main() {
     { commitment: "confirmed" }
   );
   console.log("register_dex_pool", regSig);
-
-  async function settle(dest: PublicKey): Promise<string | null> {
-    const ix = new TransactionInstruction({
-      programId: hookProgram,
-      keys: [
-        { pubkey: mint, isSigner: false, isWritable: true },
-        { pubkey: hookConfig, isSigner: false, isWritable: true },
-        { pubkey: withdrawAuth, isSigner: false, isWritable: false },
-        { pubkey: feeVault, isSigner: false, isWritable: true },
-        { pubkey: dest, isSigner: false, isWritable: true },
-        { pubkey: extraMetas, isSigner: false, isWritable: false },
-        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
-      ],
-      data: sighash("settle_dex_tax_refund"),
-    });
-    try {
-      return await sendAndConfirmTransaction(connection, new Transaction().add(ix), [payer], {
-        commitment: "confirmed",
-      });
-    } catch (e: any) {
-      const msg = String(e?.message ?? e);
-      if (msg.includes("NoPendingRefund") || msg.includes("0x177a")) {
-        return null;
-      }
-      throw e;
-    }
-  }
 
   async function sellIntoPool(rawAmount: bigint, label: string) {
     const vaultBefore = await getAccount(connection, dexVault, "confirmed", TOKEN_2022_PROGRAM_ID);

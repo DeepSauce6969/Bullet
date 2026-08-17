@@ -10,7 +10,7 @@ use spl_token_2022::extension::{
     transfer_fee::{instruction::withdraw_withheld_tokens_from_accounts, TransferFeeAmount},
     BaseStateWithExtensions, StateWithExtensions,
 };
-use spl_token_2022::instruction::transfer_checked;
+use spl_token_2022::onchain::invoke_transfer_checked;
 use spl_token_2022::state::Account as TokenAccount;
 use spl_transfer_hook_interface::instruction::TransferHookInstruction;
 
@@ -196,15 +196,18 @@ pub mod bullet_transfer_hook {
     /// Permissionless: settle size/LP refund for the pending destination.
     /// Mint withholds MAX (8%); this refunds down to the target bps from size/LP.
     pub fn settle_dex_tax_refund(ctx: Context<SettleDexTaxRefund>) -> Result<()> {
-        let cfg = &mut ctx.accounts.hook_config;
         let dest = ctx.accounts.destination_token.key();
-        require!(
-            cfg.pending_refund_dest == dest && cfg.pending_refund_amount > 0,
-            HookError::NoPendingRefund
-        );
-        let refund_net = cfg.pending_refund_amount;
-        cfg.pending_refund_dest = Pubkey::default();
-        cfg.pending_refund_amount = 0;
+        let refund_net = {
+            let cfg = &mut ctx.accounts.hook_config;
+            require!(
+                cfg.pending_refund_dest == dest && cfg.pending_refund_amount > 0,
+                HookError::NoPendingRefund
+            );
+            let refund_net = cfg.pending_refund_amount;
+            cfg.pending_refund_dest = Pubkey::default();
+            cfg.pending_refund_amount = 0;
+            refund_net
+        };
 
         let mint = ctx.accounts.mint.key();
         let withdraw_auth = ctx.accounts.withdraw_auth.key();
@@ -250,31 +253,24 @@ pub mod bullet_transfer_hook {
             .ok_or(HookError::MathOverflow)?;
         let gross = u64::try_from(gross).map_err(|_| HookError::MathOverflow)?;
 
-        let tix = transfer_checked(
+        // fee_vault is hook-exempt; Token-2022 still CPI-executes the hook, so
+        // extra metas + this program must be in additional_accounts.
+        invoke_transfer_checked(
             &spl_token_2022::ID,
-            &ctx.accounts.fee_vault.key(),
-            &mint,
-            &dest,
-            &withdraw_auth,
-            &[],
-            gross,
-            6,
-        )
-        .map_err(|_| HookError::InvalidInstruction)?;
-        // fee_vault must be hook-exempt so this transfer is allowed.
-        invoke_signed(
-            &tix,
+            ctx.accounts.fee_vault.to_account_info(),
+            ctx.accounts.mint.to_account_info(),
+            ctx.accounts.destination_token.to_account_info(),
+            ctx.accounts.withdraw_auth.to_account_info(),
             &[
-                ctx.accounts.fee_vault.to_account_info(),
-                ctx.accounts.mint.to_account_info(),
-                ctx.accounts.destination_token.to_account_info(),
-                ctx.accounts.withdraw_auth.to_account_info(),
-                ctx.accounts.token_program.to_account_info(),
                 ctx.accounts.extra_account_meta_list.to_account_info(),
+                ctx.accounts.hook_program.to_account_info(),
                 ctx.accounts.hook_config.to_account_info(),
             ],
+            gross,
+            6,
             signer,
-        )?;
+        )
+        .map_err(|_| HookError::InvalidInstruction)?;
 
         // Harvest fee-on-refund withheld back to fee_vault.
         let withheld2 = withheld_of(&ctx.accounts.destination_token.to_account_info())?;
@@ -532,6 +528,10 @@ pub struct SettleDexTaxRefund<'info> {
     /// CHECK: extra account metas (needed if refund transfer triggers hook).
     #[account(seeds = [EXTRA_ACCOUNT_METAS_SEED, mint.key().as_ref()], bump)]
     pub extra_account_meta_list: UncheckedAccount<'info>,
+
+    /// CHECK: this program — Token-2022 must CPI Execute on the refund transfer.
+    #[account(address = crate::ID)]
+    pub hook_program: UncheckedAccount<'info>,
 
     /// CHECK: Token-2022 program.
     pub token_program: UncheckedAccount<'info>,
