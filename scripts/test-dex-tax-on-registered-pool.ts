@@ -73,7 +73,6 @@ async function main() {
   const hookProgram = new PublicKey(deployed.transferHookProgramId);
   const mint = new PublicKey(deployed.bulletMint);
   const hookConfig = new PublicKey(deployed.hookConfig);
-  const extraMetas = new PublicKey(deployed.extraAccountMetaList);
   const withdrawAuth = new PublicKey(deployed.withdrawAuth);
   const feeVault = new PublicKey(deployed.dexFeeVault);
 
