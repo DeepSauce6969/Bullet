@@ -7,6 +7,28 @@ Ansem-backed, up-only protocol on Solana. Two components:
 
 See `README.md` and `frontend/README.md` for protocol mechanics and standard commands.
 
+## Canonical git branch (source of truth)
+
+**Always start from** `cursor/genesis-vaults-and-chaos-black-ui` (`origin/HEAD` / `main`). Full policy: `CONTRIBUTING.md`.
+
+```bash
+git fetch origin
+git checkout cursor/genesis-vaults-and-chaos-black-ui
+git pull origin cursor/genesis-vaults-and-chaos-black-ui
+git checkout -b cursor/<feature>-b4b2
+```
+
+Open PRs **into** `cursor/genesis-vaults-and-chaos-black-ui`, not into leftover stacks.
+
+Canonical fees (do not pick up 4% mint/burn, genesis 3.5%, or size-vs-LP 4–8% from old branches):
+
+| Param | Value |
+| --- | --- |
+| Mint/burn | **5%** |
+| Genesis tiers | **0% / 2.5% / 4%** |
+| DEX tax | **8%** flat (Token-2022 hook) |
+| Max supply | **5,000,000** |
+
 ## Cursor Cloud specific instructions
 
 The Solana + Anchor toolchain and Node deps are already installed in this environment (persisted in the VM). The startup update script only refreshes npm packages (`npm install` at the repo root and in `frontend/`); it does NOT reinstall the Solana/Anchor toolchain. The notes below are the non-obvious gotchas.
