@@ -45,7 +45,7 @@ export default function DocsPage() {
             rise in Ansem terms while USD value moves independently.
           </li>
           <li>
-            Max supply defaults to <strong>2,500 BULLET</strong> (6 decimals).
+            Max supply defaults to <strong>5,000,000 BULLET</strong> (6 decimals).
           </li>
           <li>
             Loans are <strong>time-based</strong>, not price-liquidated — expired
