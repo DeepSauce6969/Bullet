@@ -30,7 +30,10 @@ The committed `Cargo.lock` pins `edition2024` crates (e.g. `zeroize_derive 1.5.0
 - **Effective DEX tax is size vs LP (4–8%)**, not lifetime volume: `target_bps = lerp(400, 800, min(1, amount/lp / 10%))`. Mint always withholds 8%; `settle_dex_tax_refund` refunds the overpay. Enable with `npx tsx scripts/enable-size-lp-dex-tax.ts` (fee vault + withhold authority PDA).
 - Single pending-refund slot on hook config — settle before the next DEX transfer that needs a refund (router should append settle, or run a crank).
 - Protocol paths use **mint/burn** (not `transfer`) so mint/burn/borrow/leverage are not taxed.
-- Mint has **no freeze authority** (`None`) for Meteora DLMM permissionless compatibility.
+- Mint has **no freeze authority** (`None`) for Meteora DLMM compatibility. Freeze is not enough for a permissionless listing: **TransferHook program + authority are still set** (required for the DEX tax), so both **DLMM and DAMM v2** reject pool creation until Meteora grants a **token badge** (Google form + Discord ticket). Probe: `npm run probe:meteora`.
+- **Use DLMM, not DAMM v2**, once the badge exists. DAMM v2 does not forward transfer-hook extra accounts, so an active hook cannot run on DAMM transfers even with a badge. DLMM does pass extra metas on swap/LP.
+- After a Meteora pool exists, `register_dex_pool` must target the pool's **BULLET token vault ATA**, not the pool state pubkey. Swaps that need a size/LP refund must append `settle_dex_tax_refund` (one pending slot).
+- Size/LP tax can be proven without a Meteora listing: `npm run test:dex-tax` (registers a mock vault, small vs large transfers, settle).
 - Live **devnet** ids are in `deployed-devnet.json` (current: bullet `Gz7TX19…`, hook `GJdqUFK…`). Committed `declare_id!` / `Anchor.toml` track those after redeploy.
 - Local tests: `npm run test:localnet` (includes `tests/transfer_hook.ts`).
 

@@ -13,7 +13,9 @@
     "redeploy:devnet": "bash scripts/redeploy-devnet.sh",
     "sync:frontend": "tsx scripts/sync-frontend-addresses.ts",
     "set-max-supply": "tsx scripts/set-max-supply-devnet.ts",
-    "setup:hook": "npx tsx scripts/setup-transfer-hook-devnet.ts"
+    "setup:hook": "npx tsx scripts/setup-transfer-hook-devnet.ts",
+    "probe:meteora": "npx tsx scripts/probe-meteora-dlmm-pool.ts",
+    "test:dex-tax": "npx tsx scripts/test-dex-tax-on-registered-pool.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
@@ -22,9 +24,11 @@
     "tsx": "^4.23.12"
   },
   "devDependencies": {
+    "@meteora-ag/dlmm": "^1.9.14",
     "@types/bn.js": "^5.1.6",
     "@types/chai": "^4.3.20",
     "@types/mocha": "^10.0.10",
+    "bn.js": "^5.2.5",
     "chai": "^4.5.0",
     "mocha": "^10.8.2",
     "prettier": "^3.4.2",
