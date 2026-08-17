@@ -127,11 +127,6 @@ export default function LoansPage() {
    * NOT the fee budget. User pays bake + interest + over-collat only.
    * MAX LOOP = largest notional affordable with wallet ANSEM.
    */
-  const maxLoopNotional = useMemo(
-    () => maxNotionalForFeeBudget(ansemBalNum, borrowDays),
-    [ansemBalNum, borrowDays]
-  );
-
   const handleMaxLoop = async () => {
     if (!connected) {
       setVisible(true);
@@ -492,11 +487,7 @@ export default function LoansPage() {
                     {formatSpyUsd(maxBorrowableAnsem)})
                   </span>
                 ) : (
-                  <span className="text-xs text-[var(--muted)]">
-                    Target position size · Max loop{" "}
-                    {formatVal(maxLoopNotional)} · Wallet{" "}
-                    {formatVal(ansemBalNum)} ANSEM
-                  </span>
+                  <span className="hidden sm:block" aria-hidden />
                 )}
                 <div className="flex items-center gap-2 shrink-0 sm:ml-auto">
                   {mode === "borrow" ? (
