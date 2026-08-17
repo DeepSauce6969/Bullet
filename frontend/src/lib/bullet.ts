@@ -251,8 +251,9 @@ export function leverageFeeBreakdown(notional: number, days: number) {
 }
 
 /**
- * Max leverage notional payable with `feeBudget` ANSEM at `days`.
- * Longer duration → higher interest → smaller notional for the same ANSEM.
+ * Max leverage notional (target loop size) payable with `feeBudget` ANSEM.
+ * BakerDAO model: input = target size; wallet only pays bake+interest+overcollat.
+ * Longer duration → higher interest → smaller max notional for the same ANSEM.
  */
 export function maxNotionalForFeeBudget(
   feeBudget: number,
