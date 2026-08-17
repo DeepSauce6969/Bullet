@@ -10,6 +10,7 @@ const nextConfig = {
       { source: "/docs/fees", destination: "/docs#fees", permanent: false },
       { source: "/docs/contracts", destination: "/docs#contracts", permanent: false },
       { source: "/docs/risks", destination: "/docs#risks", permanent: false },
+      { source: "/leverage", destination: "/loans?mode=leverage", permanent: false },
     ];
   },
   webpack: (config) => {

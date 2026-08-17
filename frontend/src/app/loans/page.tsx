@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -92,7 +92,8 @@ function computeMaxLeverageFromAnsem(ansemBal: number, days: number): number {
  * (that made MAX LOOP identical to simple borrow).
  */
 function computeMaxLoopAmount(ansemBal: number, days: number): number {
-  return computeMaxLeverageFromAnsem(ansemBal, days);
+  // Slight haircut so fee float rounding never exceeds wallet ANSEM on-chain.
+  return computeMaxLeverageFromAnsem(ansemBal, days) * 0.995;
 }
 
 function formatAmountInput(n: number): string {
@@ -117,6 +118,16 @@ export default function LoansPage() {
   const [activeAction, setActiveAction] = useState<"none" | "repay">("none");
   const [actionAmount, setActionAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  // Deep-link: /loans?mode=leverage (also used by /leverage redirect)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("mode") === "leverage") setMode("leverage");
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const floor = Number(metrics.floorPrice) || 1;
   const hasLoan = loanData.hasLoan;
@@ -145,6 +156,8 @@ export default function LoansPage() {
   );
 
   const handleMaxLoop = () => {
+    // Leverage sizes from ANSEM fee budget only — never from BULLET LTV /
+    // maxBorrowableAnsem (that incorrectly mirrored simple borrow).
     const max = computeMaxLoopAmount(Number(ansemBalance) || 0, borrowDays);
     const next = formatAmountInput(max);
     if (!next) {
@@ -277,19 +290,21 @@ export default function LoansPage() {
       showTxToast.error("Please enter a valid amount.");
       return;
     }
-    if (mode === "borrow" && Number(amount) > Number(maxBorrowableAnsem)) {
-      showTxToast.error(
-        `Amount exceeds max borrowable (${maxBorrowableAnsem} ANSEM).`
-      );
-      return;
-    }
-    if (mode === "borrow" && insufficientBulletCollateral) {
-      showTxToast.error(
-        `Insufficient BULLET collateral (need ${borrowBreakdown.collateralBullet} BULLET).`
-      );
-      return;
-    }
-    if (mode === "leverage" && Number(amount) > maxLeveragePosition) {
+    // Borrowable / BULLET LTV checks apply to simple borrow only.
+    if (mode === "borrow") {
+      if (Number(amount) > Number(maxBorrowableAnsem)) {
+        showTxToast.error(
+          `Amount exceeds max borrowable (${maxBorrowableAnsem} ANSEM).`
+        );
+        return;
+      }
+      if (insufficientBulletCollateral) {
+        showTxToast.error(
+          `Insufficient BULLET collateral (need ${borrowBreakdown.collateralBullet} BULLET).`
+        );
+        return;
+      }
+    } else if (Number(amount) > maxLeveragePosition) {
       showTxToast.error("Insufficient ANSEM balance for leverage fees.");
       return;
     }
@@ -471,9 +486,6 @@ export default function LoansPage() {
                 ) : (
                   <span className="text-xs text-[var(--muted)]">
                     Max loop: {formatVal(maxLeveragePosition.toFixed(4))} ANSEM
-                    {" · "}
-                    BULLET bal {formatVal(bulletBalance)} · ANSEM bal{" "}
-                    {formatVal(ansemBalance)}
                   </span>
                 )}
                 <div className="flex items-center gap-2 shrink-0 sm:ml-auto">
