@@ -16,7 +16,7 @@ import {
   useTokenBalances,
   useProtocolMetrics,
 } from "@/lib/hooks";
-import { estimateInterest, parseUnits } from "@/lib/bullet";
+import { estimateInterest, parseUnits, parseBalanceNumber, maxNotionalForFeeBudget, leverageFeeBreakdown } from "@/lib/bullet";
 
 /**
  * Effective annualized borrow cost:
@@ -60,42 +60,6 @@ function formatExpiration(days: number): string {
   });
 }
 
-const LTV = 0.99;
-/** Must match on-chain LEVERAGE_BAKE_BPS / OVERCOLLAT_BPS (200 = 2%). */
-const LEVERAGE_BAKE = 0.02;
-const LEVERAGE_OVERCOLLAT = 0.02;
-
-/** Max ANSEM notional such that leverage fees (bake + interest + over-collat) ≤ ansemBalance */
-function computeMaxLeverageFromAnsem(ansemBal: number, days: number): number {
-  if (!(ansemBal > 0) || !Number.isFinite(ansemBal)) return 0;
-
-  // Fees are a small % of notional → max notional ≈ balance / ~few %.
-  let lo = 0;
-  let hi = ansemBal / 0.02;
-  for (let i = 0; i < 40; i++) {
-    const mid = (lo + hi) / 2;
-    const bakeFee = mid * LEVERAGE_BAKE;
-    const userAnsem = mid - bakeFee;
-    const loanAmount = userAnsem * LTV;
-    const overCollat = userAnsem * LEVERAGE_OVERCOLLAT;
-    const interest = Number(estimateInterest(loanAmount, days));
-    const totalRequired = bakeFee + interest + overCollat;
-    if (totalRequired <= ansemBal) lo = mid;
-    else hi = mid;
-  }
-  return lo;
-}
-
-/**
- * Max ANSEM size for the leverage input.
- * Leverage mints its own collateral — do NOT cap by wallet BULLET LTV
- * (that made MAX LOOP identical to simple borrow).
- */
-function computeMaxLoopAmount(ansemBal: number, days: number): number {
-  // Slight haircut so fee float rounding never exceeds wallet ANSEM on-chain.
-  return computeMaxLeverageFromAnsem(ansemBal, days) * 0.995;
-}
-
 function formatAmountInput(n: number): string {
   if (!(n > 0) || !Number.isFinite(n)) return "";
   // Keep up to 6 decimals (token precision), trim trailing zeros
@@ -105,8 +69,12 @@ function formatAmountInput(n: number): string {
 export default function LoansPage() {
   const { connected } = useWallet();
   const { setVisible } = useWalletModal();
-  const { ansemBalance, bulletBalance, refetch: refetchBalances } =
-    useTokenBalances();
+  const {
+    ansemBalance,
+    bulletBalance,
+    isLoading: balancesLoading,
+    refetch: refetchBalances,
+  } = useTokenBalances();
   const { loan: loanData, refetch: refetchLoan } = useLoan();
   const { data: metrics } = useProtocolMetrics();
   const actions = useBulletActions();
@@ -137,6 +105,9 @@ export default function LoansPage() {
     loanData.endTs > 0 &&
     loanData.endTs <= Math.floor(Date.now() / 1000);
 
+  const ansemBalNum = parseBalanceNumber(ansemBalance);
+  const bulletBalNum = parseBalanceNumber(bulletBalance);
+
   const formatVal = (val: string | number) =>
     Number(val).toLocaleString("en-US", {
       minimumFractionDigits: 2,
@@ -145,24 +116,50 @@ export default function LoansPage() {
 
   /** Max Ansem borrowable from BULLET collateral at 99% LTV */
   const maxBorrowableAnsem = useMemo(() => {
-    const bullet = Number(bulletBalance) || 0;
-    if (bullet <= 0 || floor <= 0) return "0";
-    return (bullet * floor * 0.99).toFixed(4);
-  }, [bulletBalance, floor]);
+    if (bulletBalNum <= 0 || floor <= 0) return "0";
+    return (bulletBalNum * floor * 0.99).toFixed(4);
+  }, [bulletBalNum, floor]);
 
-  const maxLeveragePosition = useMemo(
-    () => computeMaxLoopAmount(Number(ansemBalance) || 0, borrowDays),
-    [ansemBalance, borrowDays]
-  );
+  /**
+   * Leverage input = ANSEM fee budget from wallet (what you pay).
+   * Longer duration → higher interest → smaller loop size for the same ANSEM.
+   */
+  const leverageNotional = useMemo(() => {
+    const feeBudget = parseBalanceNumber(amount);
+    if (feeBudget <= 0) return 0;
+    return maxNotionalForFeeBudget(feeBudget, borrowDays);
+  }, [amount, borrowDays]);
 
-  const handleMaxLoop = () => {
-    // Leverage sizes from ANSEM fee budget only — never from BULLET LTV /
-    // maxBorrowableAnsem (that incorrectly mirrored simple borrow).
-    const max = computeMaxLoopAmount(Number(ansemBalance) || 0, borrowDays);
-    const next = formatAmountInput(max);
+  const handleMaxLoop = async () => {
+    if (!connected) {
+      setVisible(true);
+      return;
+    }
+    // Refresh so we never size against a stale / unloaded 0 balance.
+    const bal = await refetchBalances();
+    const available = parseBalanceNumber(bal?.ansem ?? ansemBalance);
+    const next = formatAmountInput(available);
     if (!next) {
       showTxToast.error(
-        "Need ANSEM in your wallet to cover leverage fees for MAX LOOP."
+        "No mock ANSEM in this wallet. Claim test ANSEM on Mint & Burn first (devnet faucet)."
+      );
+      return;
+    }
+    // Fee budget = full wallet ANSEM — duration decides how large the loop is.
+    setAmount(next);
+  };
+
+  const handleHalfLoop = async () => {
+    if (!connected) {
+      setVisible(true);
+      return;
+    }
+    const bal = await refetchBalances();
+    const available = parseBalanceNumber(bal?.ansem ?? ansemBalance);
+    const next = formatAmountInput(available / 2);
+    if (!next) {
+      showTxToast.error(
+        "No mock ANSEM in this wallet. Claim test ANSEM on Mint & Burn first (devnet faucet)."
       );
       return;
     }
@@ -212,40 +209,45 @@ export default function LoansPage() {
       overCollat: "0.0000",
       totalRequired: "0.0000",
       leverageMultiple: "0",
+      notional: "0.0000",
     };
 
-    if (!amount || Number(amount) <= 0) {
+    const feeBudget = parseBalanceNumber(amount);
+    if (feeBudget <= 0) {
       return { ...zero, expirationLabel: formatExpiration(borrowDays) };
     }
 
-    const amt = Number(amount);
-    const bakeFee = amt * LEVERAGE_BAKE;
-    const userAnsem = amt - bakeFee;
-    const loanAmount = userAnsem * LTV;
-    const overCollat = userAnsem * LEVERAGE_OVERCOLLAT;
-    const interest = Number(estimateInterest(loanAmount, borrowDays));
-    const totalRequired = bakeFee + interest + overCollat;
+    const notional = maxNotionalForFeeBudget(feeBudget, borrowDays);
+    const fees = leverageFeeBreakdown(notional, borrowDays);
     const safeFloor = floor > 0 ? floor : 1;
-    const leveragedPosition = userAnsem / safeFloor;
+    const leveragedPosition = fees.userAnsem / safeFloor;
     const leverageMultiple =
-      totalRequired > 0 ? (amt / totalRequired).toFixed(0) : "0";
+      fees.totalRequired > 0
+        ? (notional / fees.totalRequired).toFixed(0)
+        : "0";
 
     return {
       expirationLabel: formatExpiration(borrowDays),
       leveragedPosition: leveragedPosition.toFixed(4),
-      loanAmount: loanAmount.toFixed(4),
-      mintFee: bakeFee.toFixed(4),
-      interestFee: interest.toFixed(4),
-      overCollat: overCollat.toFixed(4),
-      totalRequired: totalRequired.toFixed(4),
+      loanAmount: fees.loanAmount.toFixed(4),
+      mintFee: fees.bakeFee.toFixed(4),
+      interestFee: fees.interest.toFixed(4),
+      overCollat: fees.overCollat.toFixed(4),
+      totalRequired: fees.totalRequired.toFixed(4),
       leverageMultiple,
+      notional: notional.toFixed(4),
     };
   }, [amount, borrowDays, floor]);
 
   const insufficientBulletCollateral = useMemo(() => {
     if (mode !== "borrow" || !amount || Number(amount) <= 0) return false;
-    return Number(bulletBalance) < Number(borrowBreakdown.collateralBullet);
-  }, [mode, amount, bulletBalance, borrowBreakdown.collateralBullet]);
+    return bulletBalNum < Number(borrowBreakdown.collateralBullet);
+  }, [mode, amount, bulletBalNum, borrowBreakdown.collateralBullet]);
+
+  const insufficientLeverageFees = useMemo(() => {
+    if (mode !== "leverage" || !amount || Number(amount) <= 0) return false;
+    return parseBalanceNumber(amount) > ansemBalNum + 1e-9;
+  }, [mode, amount, ansemBalNum]);
 
   const estimatedBorrowApr = useMemo(() => {
     if (!amount || Number(amount) <= 0 || borrowDays <= 0) return 0;
@@ -260,7 +262,7 @@ export default function LoansPage() {
     const mintFee = Number(leverageBreakdown.mintFee);
     const interest = Number(leverageBreakdown.interestFee);
     const overCollat = Number(leverageBreakdown.overCollat);
-    const principal = Number(amount);
+    const principal = Number(leverageBreakdown.notional);
     return calcEffectiveBorrowApr(
       mintFee + interest + overCollat,
       principal,
@@ -304,8 +306,46 @@ export default function LoansPage() {
         );
         return;
       }
-    } else if (Number(amount) > maxLeveragePosition) {
-      showTxToast.error("Insufficient ANSEM balance for leverage fees.");
+    } else {
+      // Leverage amount = ANSEM fee budget from wallet.
+      const feeBudget = parseBalanceNumber(amount);
+      const bal = await refetchBalances();
+      const available = parseBalanceNumber(bal?.ansem ?? ansemBalance);
+      if (feeBudget > available + 1e-9) {
+        showTxToast.error(
+          `Not enough ANSEM for fees (need ${feeBudget.toFixed(4)}, have ${available.toFixed(4)}).`
+        );
+        return;
+      }
+      const notional = maxNotionalForFeeBudget(
+        Math.min(feeBudget, available),
+        borrowDays
+      );
+      if (notional <= 0) {
+        showTxToast.error(
+          "Fee amount too small to open a leverage position at this duration."
+        );
+        return;
+      }
+
+      if (borrowDays < 1 || borrowDays > 365) {
+        showTxToast.error("Loan duration must be between 1 and 365 days.");
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const raw = parseUnits(formatAmountInput(notional) || "0");
+        const sig = await actions.leverage(raw, borrowDays);
+        showTxToast.success("Leverage position opened!", sig);
+        setAmount("");
+        refetchAll();
+      } catch (e: unknown) {
+        const parsed = parseContractError(e);
+        showTxToast.error(parsed.message || "Loan failed");
+      } finally {
+        setIsLoading(false);
+      }
       return;
     }
     if (borrowDays < 1 || borrowDays > 365) {
@@ -316,17 +356,9 @@ export default function LoansPage() {
     setIsLoading(true);
     try {
       const raw = parseUnits(amount);
-      const sig =
-        mode === "borrow"
-          ? await actions.borrow(raw, borrowDays)
-          : await actions.leverage(raw, borrowDays);
+      const sig = await actions.borrow(raw, borrowDays);
 
-      showTxToast.success(
-        mode === "borrow"
-          ? "Loan created successfully!"
-          : "Leverage position opened!",
-        sig
-      );
+      showTxToast.success("Loan created successfully!", sig);
       setAmount("");
       refetchAll();
     } catch (e: unknown) {
@@ -446,7 +478,7 @@ export default function LoansPage() {
             <div className="surface-panel p-5 sm:p-6 rounded-2xl">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-[var(--foreground)]">
-                  {mode === "borrow" ? "You borrow" : "You leverage"}
+                  {mode === "borrow" ? "You borrow" : "You pay (fees)"}
                 </span>
                 <span className="text-sm text-[var(--muted)]">
                   ~${formatSpyUsd(amount || 0)}
@@ -485,7 +517,10 @@ export default function LoansPage() {
                   </span>
                 ) : (
                   <span className="text-xs text-[var(--muted)]">
-                    Max loop: {formatVal(maxLeveragePosition.toFixed(4))} ANSEM
+                    Available: {formatVal(ansemBalNum)} ANSEM
+                    {parseBalanceNumber(amount) > 0
+                      ? ` → loop size ${formatVal(leverageNotional)} ANSEM`
+                      : ""}
                   </span>
                 )}
                 <div className="flex items-center gap-2 shrink-0 sm:ml-auto">
@@ -498,19 +533,30 @@ export default function LoansPage() {
                       MAX
                     </button>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={handleMaxLoop}
-                      className="px-4 py-1.5 rounded-full surface-pill border text-sm font-medium hover:brightness-95 transition-colors"
-                    >
-                      MAX LOOP
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleHalfLoop}
+                        disabled={balancesLoading}
+                        className="px-4 py-1.5 rounded-full surface-pill border text-sm font-medium hover:brightness-95 transition-colors disabled:opacity-50"
+                      >
+                        HALF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleMaxLoop}
+                        disabled={balancesLoading}
+                        className="px-4 py-1.5 rounded-full surface-pill border text-sm font-medium hover:brightness-95 transition-colors disabled:opacity-50"
+                      >
+                        MAX LOOP
+                      </button>
+                    </>
                   )}
                   <Link
                     href="/mint-and-burn"
                     className="px-4 py-1.5 rounded-full surface-pill border text-sm font-medium hover:brightness-95 transition-colors"
                   >
-                    Get $BULLET
+                    Get $ANSEM
                   </Link>
                 </div>
               </div>
@@ -573,7 +619,8 @@ export default function LoansPage() {
                 <div className="flex items-center gap-2 mt-3 text-sm font-medium text-[var(--accent)]">
                   <RefreshCw className="w-4 h-4 shrink-0" aria-hidden />
                   <span>
-                    1 click- loop ANSEM by only paying discounted fees
+                    Pay ANSEM fees only — longer duration = higher interest, smaller
+                    loop
                   </span>
                 </div>
               )}
@@ -653,6 +700,12 @@ export default function LoansPage() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
+                  <span className="text-[var(--muted)]">Loop size (notional)</span>
+                  <span className="font-medium text-[var(--foreground)]">
+                    {formatVal(leverageBreakdown.notional)} ANSEM
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
                   <span className="text-[var(--muted)]">Leveraged Position</span>
                   <span className="font-medium text-[var(--foreground)]">
                     {formatVal(leverageBreakdown.leveragedPosition)} BULLET
@@ -680,7 +733,7 @@ export default function LoansPage() {
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-[var(--muted)]">
-                    Total ANSEM Required Now{" "}
+                    Total ANSEM paid from wallet{" "}
                     <span className="text-[var(--muted)] text-xs">
                       ({leverageBreakdown.leverageMultiple}x leverage)
                     </span>
@@ -692,7 +745,7 @@ export default function LoansPage() {
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-[var(--muted)]">Available ANSEM Balance</span>
                   <span className="font-medium text-[var(--foreground)]">
-                    {formatVal(ansemBalance)} ANSEM
+                    {formatVal(ansemBalNum)} ANSEM
                   </span>
                 </div>
               </div>
@@ -715,24 +768,28 @@ export default function LoansPage() {
                 (!tradingEnabled ||
                   hasLoan ||
                   Number(amount) > Number(maxBorrowableAnsem) ||
-                  insufficientBulletCollateral))
+                  insufficientBulletCollateral)) ||
+              (mode === "leverage" &&
+                (!tradingEnabled || hasLoan || insufficientLeverageFees || leverageNotional <= 0))
             }
             className="w-full py-4 rounded-full btn-primary font-mono font-bold text-xs tracking-wider uppercase disabled:opacity-50"
           >
             {!connected
               ? "CONNECT WALLET"
-              : mode === "borrow" && !tradingEnabled
+              : !tradingEnabled
                 ? "TRADING PAUSED"
-                : mode === "borrow" && hasLoan
+                : hasLoan
                   ? "USE ACCOUNT WITH NO LOANS"
                   : mode === "borrow" &&
                       Number(amount) > Number(maxBorrowableAnsem)
                     ? "EXCEEDS MAX BORROWABLE"
                     : mode === "borrow" && insufficientBulletCollateral
                       ? "INSUFFICIENT BULLET COLLATERAL"
-                      : mode === "borrow"
-                        ? "EXECUTE BORROW"
-                        : "OPEN LEVERAGE POSITION"}
+                      : mode === "leverage" && insufficientLeverageFees
+                        ? "INSUFFICIENT ANSEM FOR FEES"
+                        : mode === "borrow"
+                          ? "EXECUTE BORROW"
+                          : "OPEN LEVERAGE POSITION"}
           </button>
         </div>
 

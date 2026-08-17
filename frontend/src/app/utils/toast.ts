@@ -7,7 +7,7 @@ export type ToastId = string | number;
 const REVERT_HINTS: Array<{ match: RegExp; label: string }> = [
   { match: /insufficient\s*(funds|balance|allowance)/i, label: "Insufficient funds" },
   { match: /transfer amount exceeds balance/i, label: "Insufficient funds" },
-  { match: /InsufficientLeverageFee/i, label: "Insufficient ANSEM for leverage fees" },
+  { match: /InsufficientLeverageFee/i, label: "Not enough ANSEM in wallet to cover leverage fees — lower the fee amount or claim test ANSEM" },
   { match: /Borrow exceeds 99% LTV|BorrowExceedsLtv/i, label: "Borrow exceeds 99% LTV (use 1-click leverage for looped size)" },
   { match: /FloorWouldDecrease|Floor would decrease/i, label: "Floor would decrease (protocol safety check)" },
   { match: /MathOverflow|custom program error: 0x177b|\berror code[:\s]*6011\b|6011/i, label: "Math overflow — refresh the page; if it persists the program may need an upgrade" },

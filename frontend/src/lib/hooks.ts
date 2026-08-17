@@ -65,22 +65,43 @@ export function useTokenBalances() {
   const { connection } = useConnection();
   const [ansemBalance, setAnsemBalance] = useState("0");
   const [bulletBalance, setBulletBalance] = useState("0");
+  const [ansemRaw, setAnsemRaw] = useState<bigint>(BigInt(0));
+  const [bulletRaw, setBulletRaw] = useState<bigint>(BigInt(0));
   const [isLoading, setIsLoading] = useState(false);
 
   const refetch = useCallback(async () => {
     if (!publicKey) {
       setAnsemBalance("0");
       setBulletBalance("0");
-      return;
+      setAnsemRaw(BigInt(0));
+      setBulletRaw(BigInt(0));
+      return {
+        ansem: "0",
+        bullet: "0",
+        ansemRaw: BigInt(0),
+        bulletRaw: BigInt(0),
+      };
     }
     setIsLoading(true);
     try {
       const bal = await fetchTokenBalances(publicKey, connection);
       setAnsemBalance(bal.ansem);
       setBulletBalance(bal.bullet);
+      setAnsemRaw(bal.ansemRaw);
+      setBulletRaw(bal.bulletRaw);
+      return bal;
     } catch {
+      const empty = {
+        ansem: "0",
+        bullet: "0",
+        ansemRaw: BigInt(0),
+        bulletRaw: BigInt(0),
+      };
       setAnsemBalance("0");
       setBulletBalance("0");
+      setAnsemRaw(BigInt(0));
+      setBulletRaw(BigInt(0));
+      return empty;
     } finally {
       setIsLoading(false);
     }
@@ -88,9 +109,19 @@ export function useTokenBalances() {
 
   useEffect(() => {
     refetch();
-  }, [refetch]);
+    if (!publicKey) return;
+    const id = setInterval(refetch, 12_000);
+    return () => clearInterval(id);
+  }, [refetch, publicKey]);
 
-  return { ansemBalance, bulletBalance, isLoading, refetch };
+  return {
+    ansemBalance,
+    bulletBalance,
+    ansemRaw,
+    bulletRaw,
+    isLoading,
+    refetch,
+  };
 }
 
 export function useLoan() {

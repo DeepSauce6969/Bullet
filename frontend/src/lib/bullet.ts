@@ -148,10 +148,81 @@ export function formatUnits(
   return (n / 10 ** decimals).toFixed(4);
 }
 
+/** Full-precision balance string (no toFixed truncation) for fee/MAX LOOP math. */
+export function formatBalance(
+  raw: bigint,
+  decimals: number = BULLET_DECIMALS
+): string {
+  const base = BigInt(10 ** decimals);
+  const whole = raw / base;
+  const frac = raw % base;
+  if (frac === BigInt(0)) return whole.toString();
+  const fracStr = frac.toString().padStart(decimals, "0").replace(/0+$/, "");
+  return `${whole}.${fracStr}`;
+}
+
 export function parseUnits(value: string, decimals = BULLET_DECIMALS): bigint {
   const [whole, frac = ""] = value.trim().split(".");
   const padded = (frac + "0".repeat(decimals)).slice(0, decimals);
   return BigInt(whole || "0") * BigInt(10 ** decimals) + BigInt(padded || "0");
+}
+
+/** Safe number parse for balance strings (never treat "0.0000" via ||). */
+export function parseBalanceNumber(value: string | number): number {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Leverage fee breakdown for notional A (mirrors on-chain leverage.rs).
+ * User pays totalRequired from wallet ANSEM; protocol mints collateral.
+ */
+export function leverageFeeBreakdown(notional: number, days: number) {
+  if (!(notional > 0) || !Number.isFinite(notional) || days <= 0) {
+    return {
+      notional: 0,
+      bakeFee: 0,
+      userAnsem: 0,
+      loanAmount: 0,
+      overCollat: 0,
+      interest: 0,
+      totalRequired: 0,
+    };
+  }
+  const bakeFee = notional * 0.02;
+  const userAnsem = notional - bakeFee;
+  const loanAmount = userAnsem * 0.99;
+  const overCollat = userAnsem * 0.02;
+  const interest = Number(estimateInterest(loanAmount, days));
+  return {
+    notional,
+    bakeFee,
+    userAnsem,
+    loanAmount,
+    overCollat,
+    interest,
+    totalRequired: bakeFee + interest + overCollat,
+  };
+}
+
+/**
+ * Max leverage notional payable with `feeBudget` ANSEM at `days`.
+ * Longer duration → higher interest → smaller notional for the same ANSEM.
+ */
+export function maxNotionalForFeeBudget(
+  feeBudget: number,
+  days: number
+): number {
+  if (!(feeBudget > 0) || !Number.isFinite(feeBudget) || days <= 0) return 0;
+  let lo = 0;
+  let hi = feeBudget / 0.02;
+  for (let i = 0; i < 48; i++) {
+    const mid = (lo + hi) / 2;
+    if (leverageFeeBreakdown(mid, days).totalRequired <= feeBudget) lo = mid;
+    else hi = mid;
+  }
+  // Haircut so float/u64 rounding never exceeds wallet on-chain.
+  return lo * 0.995;
 }
 
 export function estimateMintReceive(ansemAmount: number, floor: number): string {
@@ -269,18 +340,42 @@ export async function fetchMetrics(
 export async function fetchTokenBalances(
   owner: PublicKey,
   connection: Connection = getConnection()
-): Promise<{ ansem: string; bullet: string }> {
-  const ansemAta = getAssociatedTokenAddressSync(ANSEM_MINT, owner);
+): Promise<{
+  ansem: string;
+  bullet: string;
+  ansemRaw: bigint;
+  bulletRaw: bigint;
+}> {
+  // ANSEM mock mint is classic SPL; also probe Token-2022 ATA as a fallback.
+  const ansemClassic = getAssociatedTokenAddressSync(
+    ANSEM_MINT,
+    owner,
+    false,
+    TOKEN_PROGRAM_ID
+  );
+  const ansemT22 = getAssociatedTokenAddressSync(
+    ANSEM_MINT,
+    owner,
+    false,
+    TOKEN_2022_PROGRAM_ID
+  );
   const userBullet = bulletAta(owner);
-  const [a, b] = await Promise.all([
-    getAccount(connection, ansemAta).catch(() => null),
+  const [aClassic, aT22, b] = await Promise.all([
+    getAccount(connection, ansemClassic).catch(() => null),
+    getAccount(connection, ansemT22, "confirmed", TOKEN_2022_PROGRAM_ID).catch(
+      () => null
+    ),
     getAccount(connection, userBullet, "confirmed", TOKEN_2022_PROGRAM_ID).catch(
       () => null
     ),
   ]);
+  const ansemRaw = (aClassic ?? aT22)?.amount ?? BigInt(0);
+  const bulletRaw = b?.amount ?? BigInt(0);
   return {
-    ansem: formatUnits(a ? a.amount : BigInt(0), ANSEM_DECIMALS),
-    bullet: formatUnits(b ? b.amount : BigInt(0), BULLET_DECIMALS),
+    ansem: formatBalance(ansemRaw, ANSEM_DECIMALS),
+    bullet: formatBalance(bulletRaw, BULLET_DECIMALS),
+    ansemRaw,
+    bulletRaw,
   };
 }
 
